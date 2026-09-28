@@ -691,7 +691,7 @@ function fillPreviewSelect() {
   const sel = $('previewSelect');
   if (state.preview !== '' && !state.people[+state.preview]) state.preview = '';
   sel.innerHTML = '<option value="">모두 보기 (고치는 중)</option>' +
-    state.people.map((p, i) => `<option value="${i}">${esc(p.name)}${p.tags.length ? ` · ${esc(p.tags.join(', '))}` : ''}</option>`).join('');
+    state.people.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join(''); // 꼬리표는 설정 화면에서만
   sel.value = state.preview;
 }
 
