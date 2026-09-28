@@ -151,3 +151,26 @@ test('근무시간: 사람마다 받는 줄만, 한 달 합계', () => {
   assert.strictEqual(R.formatHours(36.5), '36시간 30분');
   assert.strictEqual(R.formatHours(12), '12시간');
 });
+
+test('하루 근무시간 범위', () => {
+  const people = [{ tags: ['1부'] }, { tags: ['2부'] }];
+  assert.deepStrictEqual(R.dayHoursRange('[1부] 근무 9시~10시\n[2부] 근무 10시~12시', people), { min: 1, max: 2 });
+  assert.deepStrictEqual(R.dayHoursRange('출근(9시~12시)', people), { min: 3, max: 3 });
+  assert.strictEqual(R.dayHoursRange('*영화 감상', people), null);
+  assert.deepStrictEqual(R.dayHoursRange('출근(9시~11시)', []), { min: 2, max: 2 });
+});
+
+test('자동 완성', () => {
+  const idx = R.lineIndex(['출근(9시~12시)\n[탁구] *체육(탁구)\n*영화 감상', '출근(9시~12시)\n*체육 대회', '출근(9시~11시)']);
+  assert.deepStrictEqual(R.suggestLines('출근', idx, []).map((x) => x.text), ['출근(9시~12시)', '출근(9시~11시)']);
+  // 꼬리표 뗀 부분이 앞에서 맞으면 위로
+  assert.deepStrictEqual(R.suggestLines('*체육', idx, []).map((x) => x.text), ['*체육 대회', '[탁구] *체육(탁구)']);
+  assert.deepStrictEqual(R.suggestLines('  ', idx, []), []);
+  assert.deepStrictEqual(R.suggestLines('[배', idx, ['탁구', '배드민턴']).map((x) => x.text), ['[배드민턴] ']);
+  assert.deepStrictEqual(R.suggestLines('[', idx, ['탁구', '배드민턴']).map((x) => x.text), ['[탁구] ', '[배드민턴] ']);
+});
+
+test('찾아 바꾸기 개수', () => {
+  assert.deepStrictEqual(R.countMatches(['강사A 강사A', '강사B', '강사A'], '강사A'), { cells: 2, hits: 3 });
+  assert.deepStrictEqual(R.countMatches(['x'], ''), { cells: 0, hits: 0 });
+});

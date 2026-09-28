@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -151,7 +151,7 @@ function sheetHTML(ym, mo, mode, person) {
     if (hn) cls.push('holiday');
     if (edit) cls.push('editable');
     html += `<div class="${cls.join(' ')}" data-day="${d}">
-        <div class="cell-head"><span class="dnum">${d}</span>${hn ? `<span class="hname">${esc(hn)}</span>` : ''}</div>
+        <div class="cell-head"><span class="dnum">${d}</span>${hn ? `<span class="hname">${esc(hn)}</span>` : ''}${edit ? `<span class="wh">${dayHoursLabel(mo.days[d])}</span>` : ''}</div>
         <div class="cell-body"><div class="lines">${linesHTML(mo.days[d], mode, person)}</div></div>
       </div>`;
   }
@@ -175,6 +175,26 @@ function sheetHTML(ym, mo, mode, person) {
   return html;
 }
 
+// 칸 오른쪽 위 작은 근무시간 (인쇄에는 안 나옴)
+function dayHoursLabel(text) {
+  const r = dayHoursRange(text || '', activePeople());
+  if (!r) return '';
+  return r.min === r.max ? formatHours(r.max) : `${formatHours(r.min).replace('시간', '')}~${formatHours(r.max)}`;
+}
+
+// 위쪽 「근무시간」 버튼에 이번 달 합계 (고칠 때마다 바로 바뀜)
+function updateHoursChip() {
+  const btn = $('hoursBtn');
+  const mo = cur();
+  const people = activePeople();
+  if (!mo || !people.length) { btn.textContent = '근무시간'; return; }
+  const sums = people.map((p) => workSummary(mo, p).hours);
+  const min = Math.min(...sums), max = Math.max(...sums);
+  btn.textContent = `근무 ${min === max ? formatHours(max) : `${formatHours(min).replace('시간', '')}~${formatHours(max)}`}`;
+  btn.title = '사람마다 받는 줄이 달라 시간이 다를 수 있어요. 눌러서 사람별로 보기';
+  if (!$('hoursPanel').hidden) renderHours();
+}
+
 function render() {
   const mo = cur();
   $('monthLabel').textContent = `${state.y}년 ${state.m}월 ▾`;
@@ -185,6 +205,7 @@ function render() {
   sheet.classList.toggle('picking', !!state.pick);
   fitAll(sheet);
   renderBanner();
+  updateHoursChip();
 }
 
 function fit(box) {
@@ -529,11 +550,17 @@ function startEdit(box, day) {
       host.classList.toggle('hatch', !ta.value.trim());
     }
     fit(box);
+    if (day) { const wh = host.querySelector('.wh'); if (wh) wh.textContent = dayHoursLabel(ta.value); }
     markDirty();
+    updateHoursChip();
+    updateSuggest();
   });
   ta.addEventListener('keydown', (e) => {
+    if (e.isComposing) return;
+    if (suggestKey(e)) return;
     if (e.key === 'Escape') { e.preventDefault(); ta.blur(); }
   });
+  ta.addEventListener('click', updateSuggest);
   ta.addEventListener('blur', () => stopEdit());
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -549,6 +576,156 @@ function stopEdit() {
   ed.ta.remove();
   ed.host.classList.remove('editing');
   hideTools();
+  hideSuggest();
+}
+
+/* ===== 자동 완성 ===== */
+const sug = { items: [], active: -1 };
+let lineIdxCache = null;
+function allLineIndex() {
+  // 불러온 모든 달의 칸 글자 (지금 고치는 칸은 빼야 쓰는 중인 글자가 다시 제안되지 않음)
+  if (!lineIdxCache) {
+    const texts = [];
+    const skip = state.editing && state.editing.day ? state.editing : null;
+    for (const [ym, e] of Object.entries(state.months)) {
+      for (const [d, t] of Object.entries(e.data.days || {})) {
+        if (skip && ym === curKey() && +d === skip.day) continue;
+        texts.push(t);
+      }
+    }
+    lineIdxCache = lineIndex(texts);
+  }
+  return lineIdxCache;
+}
+function currentLine(ta) {
+  const pos = ta.selectionStart;
+  const start = ta.value.lastIndexOf('\n', pos - 1) + 1;
+  let end = ta.value.indexOf('\n', pos);
+  if (end < 0) end = ta.value.length;
+  return { start, end, prefix: ta.value.slice(start, pos), atEnd: pos === end };
+}
+function updateSuggest() {
+  const ed = state.editing;
+  if (!ed || !ed.day) return hideSuggest();
+  const { prefix, atEnd } = currentLine(ed.ta);
+  sug.items = atEnd ? suggestLines(prefix, allLineIndex(), TAG_GROUPS.flat()) : [];
+  sug.active = -1;
+  const box = $('suggest');
+  if (!sug.items.length) return hideSuggest();
+  box.innerHTML = sug.items.map((it, i) => `<li data-i="${i}" class="${it.tag ? 'tag' : ''}">${linesHTML(it.label, 'edit')}</li>`).join('') +
+    '<li class="hint">Tab: 넣기 · ↑↓: 고르기 · Esc: 닫기</li>';
+  box.hidden = false;
+  const r = ed.host.getBoundingClientRect();
+  const w = Math.max(r.width, 260);
+  box.style.left = Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8)) + 'px';
+  box.style.width = w + 'px';
+  const below = r.bottom + 4;
+  box.style.top = (below + box.offsetHeight > window.innerHeight - 8 ? Math.max(8, r.top - box.offsetHeight - 50) : below) + 'px';
+}
+function hideSuggest() {
+  sug.items = [];
+  sug.active = -1;
+  $('suggest').hidden = true;
+  lineIdxCache = null;
+}
+function paintSuggest() {
+  $('suggest').querySelectorAll('li[data-i]').forEach((li) => li.classList.toggle('on', +li.dataset.i === sug.active));
+}
+function acceptSuggest(i) {
+  const ed = state.editing;
+  const it = sug.items[i];
+  if (!ed || !it) return;
+  const ta = ed.ta;
+  const { start, end } = currentLine(ta);
+  ta.value = ta.value.slice(0, start) + it.text + ta.value.slice(end);
+  const caret = start + it.text.length;
+  ta.setSelectionRange(caret, caret);
+  ta.dispatchEvent(new Event('input'));
+  if (!it.tag) hideSuggest();
+}
+// 자동 완성 목록이 떠 있을 때 키 처리. 처리했으면 true
+function suggestKey(e) {
+  if (!sug.items.length) return false;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const n = sug.items.length;
+    sug.active = e.key === 'ArrowDown' ? (sug.active + 1) % n : (sug.active - 1 + n) % n;
+    paintSuggest();
+    return true;
+  }
+  if (e.key === 'Tab' || (e.key === 'Enter' && sug.active >= 0)) {
+    e.preventDefault();
+    acceptSuggest(Math.max(0, sug.active));
+    return true;
+  }
+  if (e.key === 'Escape') { e.preventDefault(); hideSuggest(); return true; }
+  return false;
+}
+
+/* ===== 같은 요일에 모두 ===== */
+function fillSameWeekday(from) {
+  stopEdit();
+  const mo = cur();
+  const { y, m } = state;
+  const w = weekday(y, m, from);
+  const text = mo.days[from] || '';
+  const before = { ...mo.days };
+  const targets = [];
+  for (let d = 1; d <= daysIn(y, m); d++) {
+    if (d === from || weekday(y, m, d) !== w || holidayName(y, m, d)) continue;
+    if (text) mo.days[d] = text; else delete mo.days[d];
+    targets.push(d);
+  }
+  if (!targets.length) { toast('같은 요일인 다른 날이 없어요.'); return; }
+  render();
+  markDirty();
+  targets.forEach((d) => { const c = document.querySelector(`#sheet .cell[data-day="${d}"]`); if (c) c.classList.add('flash'); });
+  const wn = '일월화수목금토'[w];
+  toast(`${m}월 ${wn}요일 ${targets.length}칸(${targets.join('·')}일)에 똑같이 넣었어요. 공휴일은 뺐어요.`, {
+    label: '되돌리기', fn: () => { mo.days = before; render(); markDirty(); },
+  });
+}
+
+/* ===== 찾아 바꾸기 ===== */
+function openReplace() {
+  if (!togglePanel('replacePanel')) { markMatches(''); return; }
+  stopEdit();
+  updateReplace();
+  $('findText').focus();
+}
+function updateReplace() {
+  const word = $('findText').value;
+  const mo = cur();
+  const { cells, hits } = countMatches(Object.values(mo ? mo.days : {}), word);
+  $('replaceInfo').textContent = word ? (hits ? `${cells}칸에서 ${hits}곳을 찾았어요. 달력에 노랗게 표시했어요.` : '이 달에는 없어요.') : '바꿀 말을 적으면 이 달 칸에서 찾아요.';
+  $('doReplace').disabled = !hits;
+  markMatches(word);
+}
+function markMatches(word) {
+  const mo = cur();
+  document.querySelectorAll('#sheet .cell.in').forEach((c) => {
+    c.classList.toggle('match', !!word && (mo.days[c.dataset.day] || '').includes(word));
+  });
+}
+function doReplace() {
+  const word = $('findText').value;
+  const to = $('replaceText').value;
+  if (!word) return;
+  const mo = cur();
+  const before = { ...mo.days };
+  let n = 0;
+  for (const [d, t] of Object.entries(mo.days)) {
+    if (!t.includes(word)) continue;
+    const next = t.split(word).join(to);
+    if (next.trim()) mo.days[d] = next; else delete mo.days[d];
+    n++;
+  }
+  render();
+  markDirty();
+  updateReplace();
+  toast(`${n}칸에서 「${word}」를 「${to || '(지움)'}」로 바꿨어요.`, {
+    label: '되돌리기', fn: () => { mo.days = before; render(); markDirty(); updateReplace(); },
+  });
 }
 
 // 제목·시간 안내·요일 머리글 (한 줄짜리)
@@ -580,8 +757,8 @@ function positionTools() {
   if (!cell) return;
   const r = cell.getBoundingClientRect();
   const h = t.offsetHeight || 36;
-  let top = r.bottom + 6;
-  if (top + h > window.innerHeight - 8) top = r.top - h - 6;
+  let top = r.top - h - 6; // 칸 위 (아래는 자동 완성 목록 자리)
+  if (top < 8) top = r.bottom + 6;
   const left = Math.min(r.left, document.documentElement.clientWidth - t.offsetWidth - 8);
   t.style.top = Math.max(8, top) + 'px';
   t.style.left = Math.max(8, left) + 'px';
@@ -715,6 +892,7 @@ function rowsChanged() {
   fillPreviewSelect();
   renderTagSummary();
   markPeopleDirty();
+  updateHoursChip();
   if (state.tab === 'groups') renderGroupNotes();
 }
 
@@ -1068,7 +1246,7 @@ function doPrint() {
 }
 
 /* ===== 위쪽 작은 창 (인쇄·기록·근무시간): 하나만 열림 ===== */
-const PANELS = ['printPanel', 'historyPanel', 'hoursPanel'];
+const PANELS = ['printPanel', 'historyPanel', 'hoursPanel', 'replacePanel'];
 function togglePanel(id) {
   const el = $(id);
   const open = el.hidden;
@@ -1281,11 +1459,21 @@ function bind() {
     if (b) restoreHistory(+b.dataset.restore, b.dataset.when);
   });
   $('hoursBtn').addEventListener('click', openHours);
+  $('replaceBtn').addEventListener('click', openReplace);
+  $('findText').addEventListener('input', updateReplace);
+  $('doReplace').addEventListener('click', doReplace);
+  const sg = $('suggest');
+  sg.addEventListener('mousedown', (e) => e.preventDefault()); // 입력칸 포커스 유지
+  sg.addEventListener('click', (e) => {
+    const li = e.target.closest('li[data-i]');
+    if (li) acceptSuggest(+li.dataset.i);
+  });
   $('copyHours').addEventListener('click', copyHours);
-  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { $(b.dataset.close).hidden = true; }));
+  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { $(b.dataset.close).hidden = true; markMatches(''); }));
   document.addEventListener('click', (e) => {
     if (e.target.closest('.popwrap')) return;
     PANELS.forEach((pid) => { $(pid).hidden = true; });
+    markMatches('');
   });
   $('doPrint').addEventListener('click', doPrint);
   window.addEventListener('afterprint', afterPrint);
@@ -1349,7 +1537,9 @@ function bind() {
   tools.addEventListener('mousedown', (e) => e.preventDefault()); // 입력칸 포커스 유지
   tools.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-act]');
-    if (b) beginPick(b.dataset.act, +tools.dataset.day);
+    if (!b) return;
+    if (b.dataset.act === 'weekday') fillSameWeekday(+tools.dataset.day);
+    else beginPick(b.dataset.act, +tools.dataset.day);
   });
 
   // 참여자 표
@@ -1435,7 +1625,7 @@ function bind() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && state.pick) cancelPick();
-    if (e.key === 'Escape') { PANELS.forEach((pid) => { $(pid).hidden = true; }); $('monthPicker').hidden = true; }
+    if (e.key === 'Escape') { PANELS.forEach((pid) => { $(pid).hidden = true; }); $('monthPicker').hidden = true; markMatches(''); }
   });
 
   // 사용법: 닫으면 상단 [사용법] 버튼으로 다시 열 수 있음

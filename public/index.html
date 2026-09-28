@@ -28,6 +28,16 @@
     </label>
     <button type="button" id="helpBtn" class="btn" hidden>사용법</button>
     <div class="popwrap">
+      <button type="button" id="replaceBtn" class="btn">찾아 바꾸기</button>
+      <div id="replacePanel" class="printpanel replacepanel" hidden>
+        <div class="pp-head"><b>이 달에서 찾아 바꾸기</b><button type="button" class="iconbtn small" data-close="replacePanel" aria-label="닫기">✕</button></div>
+        <label class="field" for="findText">찾을 말<input id="findText" autocomplete="off" placeholder="예: 장애인체육회강사"></label>
+        <label class="field" for="replaceText">바꿀 말 <small class="muted">(비우면 지워요)</small><input id="replaceText" autocomplete="off" placeholder="예: 새 강사 이름"></label>
+        <p id="replaceInfo" class="small muted"></p>
+        <div class="acts"><button type="button" id="doReplace" class="btn primary">모두 바꾸기</button></div>
+      </div>
+    </div>
+    <div class="popwrap">
       <button type="button" id="hoursBtn" class="btn">근무시간</button>
       <div id="hoursPanel" class="printpanel hourspanel" hidden>
         <div class="pp-head"><b id="hoursTitle">근무시간</b><button type="button" class="iconbtn small" data-close="hoursPanel" aria-label="닫기">✕</button></div>
@@ -71,7 +81,8 @@
   <ol class="steps">
     <li>
       <b>고치기</b>
-      <p>아래 종이에서 <u>날짜 칸을 누르고</u> 한글처럼 바로 쓰세요. 제목·요일·맨 아래 안내문도 눌러서 고쳐요.</p>
+      <p>아래 종이에서 <u>날짜 칸을 누르고</u> 한글처럼 바로 쓰세요. 제목·요일·맨 아래 안내문도 눌러서 고쳐요.
+        쓰다 보면 전에 쓴 줄이 아래에 떠요 — <u>Tab</u>으로 넣기.</p>
     </li>
     <li>
       <b>반마다 다른 줄</b>
@@ -171,7 +182,10 @@
 <div id="cellTools" class="celltools ui" hidden>
   <button type="button" data-act="move">다른 날로 옮기기</button>
   <button type="button" data-act="swap">다른 날과 바꾸기</button>
+  <button type="button" data-act="weekday">같은 요일에 모두</button>
 </div>
+
+<ul id="suggest" class="suggest ui" hidden></ul>
 
 <div id="toast" class="toast ui" hidden></div>
 

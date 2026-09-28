@@ -193,6 +193,63 @@ function workSummary(month, person) {
   return { days, hours: Math.round(hours * 100) / 100, noTime };
 }
 
+// 하루 칸의 근무시간 범위 (사람마다 받는 줄이 달라서 min~max). 근무 줄이 없으면 null
+function dayHoursRange(text, people) {
+  const calc = (p) => textFor(text, p).split('\n').reduce((sum, l) => sum + workHoursOfLine(l), 0);
+  const vals = (people && people.length ? people : [{ tags: [] }]).map(calc);
+  const round = (x) => Math.round(x * 100) / 100;
+  const max = round(Math.max(...vals));
+  if (!max) return null;
+  return { min: round(Math.min(...vals)), max };
+}
+
+/* ===== 자동 완성 =====
+   이미 쓴 줄들을 모아 두고, 칸에서 쓰는 중인 줄과 비슷한 것을 보여 준다.
+   '[' 로 시작하면 반 나누기 꼬리표를 보여 준다. */
+function lineIndex(texts) {
+  const index = new Map();
+  for (const t of texts) {
+    for (const raw of String(t || '').split('\n')) {
+      const line = raw.trim();
+      if (line) index.set(line, (index.get(line) || 0) + 1);
+    }
+  }
+  return index;
+}
+
+function suggestLines(prefix, index, tags, limit = 6) {
+  const q = prefix.trim();
+  if (!q) return [];
+  const tagOnly = prefix.match(/^\s*\[([^\[\]]*)$/);
+  if (tagOnly) {
+    const part = tagOnly[1].trim();
+    return tags.filter((t) => t.startsWith(part)).slice(0, limit).map((t) => ({ text: `[${t}] `, label: `[${t}]`, tag: true }));
+  }
+  const lower = q.toLowerCase();
+  const found = [];
+  for (const [line, count] of index) {
+    if (line === q) continue;
+    const l = line.toLowerCase();
+    const body = parseLine(line).rest.trim().toLowerCase(); // 꼬리표 뗀 부분
+    if (!l.includes(lower)) continue;
+    const starts = l.startsWith(lower) || body.startsWith(lower);
+    found.push({ line, score: (starts ? 1000 : 0) + count });
+  }
+  found.sort((a, b) => b.score - a.score || a.line.length - b.line.length);
+  return found.slice(0, limit).map((f) => ({ text: f.line, label: f.line }));
+}
+
+// 찾아 바꾸기: 칸들에서 찾은 곳 수
+function countMatches(texts, word) {
+  if (!word) return { cells: 0, hits: 0 };
+  let cells = 0, hits = 0;
+  for (const t of texts) {
+    const n = String(t || '').split(word).length - 1;
+    if (n) { cells++; hits += n; }
+  }
+  return { cells, hits };
+}
+
 // 36.5 → '36시간 30분'
 function formatHours(h) {
   const whole = Math.floor(h + 1e-9);
@@ -239,6 +296,6 @@ function normalizeMonth(data, m) {
 if (typeof module !== 'undefined') {
   module.exports = {
     DEFAULT_TAG_GROUPS, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
-    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours,
+    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches,
   };
 }
