@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>월간 일정표</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar ui">
+  <div class="bar-left">
+    <div class="monthnav">
+      <button type="button" id="prevMonth" class="iconbtn" aria-label="지난달">◀</button>
+      <span id="monthLabel" class="monthlabel">2026년 9월</span>
+      <button type="button" id="nextMonth" class="iconbtn" aria-label="다음달">▶</button>
+    </div>
+    <span id="saveState" class="savestate" title="저장 기능은 다음 단계에서 연결됩니다">시험판 · 저장 안 됨</span>
+  </div>
+  <div class="bar-right">
+    <label class="previewpick" for="previewSelect">
+      <span>미리보기</span>
+      <select id="previewSelect"></select>
+    </label>
+    <button type="button" id="peopleBtn" class="btn">참여자</button>
+    <button type="button" id="printBtn" class="btn primary">개인별 인쇄</button>
+  </div>
+</header>
+
+<div id="notice" class="notice ui" hidden></div>
+
+<div id="hint" class="hint ui">
+  <p>칸을 누르면 바로 고칠 수 있어요. 줄 앞에 <b class="chip">[탁구]</b>처럼 쓰면 그 사람 계획표에만 들어가요.
+    <span class="c-blue">*</span>·<span class="c-blue">→</span>로 시작하면 파란 글씨, <span class="c-red">!</span>로 시작하면 빨간 글씨.</p>
+  <button type="button" id="hintClose" class="iconbtn small" aria-label="안내 닫기">✕</button>
+</div>
+
+<main class="desk">
+  <div id="sheetWrap" class="sheet-wrap">
+    <article id="sheet" class="sheet" aria-label="인쇄될 일정표"></article>
+  </div>
+</main>
+
+<div id="cellTools" class="celltools ui" hidden>
+  <button type="button" data-act="move">다른 날로 옮기기</button>
+  <button type="button" data-act="swap">다른 날과 바꾸기</button>
+</div>
+
+<div id="toast" class="toast ui" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
