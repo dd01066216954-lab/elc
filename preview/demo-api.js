@@ -43,6 +43,7 @@
     },
     people: { list: people, updatedAt: 1 },
     custom: [],
+    tagGroups: null,
   };
 
   const reply = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -55,6 +56,12 @@
     const body = init.body ? JSON.parse(init.body) : null;
     const path = url.slice(4);
     let m;
+    if (path === '/months') return reply({ months: Object.keys(db.months).sort() });
+    if (path === '/settings') {
+      if (method === 'GET') return reply({ tagGroups: db.tagGroups });
+      db.tagGroups = body.tagGroups;
+      return reply({ ok: true });
+    }
     if ((m = path.match(/^\/months\/(\d{4}-\d{2})$/))) {
       if (method === 'GET') return reply(db.months[m[1]] ? db.months[m[1]] : { data: null, updatedAt: null });
       db.months[m[1]] = { data: JSON.parse(JSON.stringify(body.data)), updatedAt: Date.now() };

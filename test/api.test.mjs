@@ -83,3 +83,10 @@ test('참여자 저장', async () => {
   assert.strictEqual(r.status, 200);
   assert.deepStrictEqual((await call('/people')).data.people, [{ name: '가', tags: ['탁구', '2부'] }]);
 });
+
+test('반 나누기 설정 저장 · 저장된 달 목록', async () => {
+  assert.strictEqual((await call('/settings')).data.tagGroups, null);
+  await call('/settings', { method: 'PUT', body: { tagGroups: [{ name: '조리', tags: ['오전조', ' 오후조 ', ''] }] } });
+  assert.deepStrictEqual((await call('/settings')).data.tagGroups, [{ name: '조리', tags: ['오전조', '오후조'] }]);
+  assert.deepStrictEqual((await call('/months')).data.months, ['2026-09', '2026-10']);
+});

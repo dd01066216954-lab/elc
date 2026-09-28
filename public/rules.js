@@ -3,15 +3,24 @@
 // 브라우저에서는 전역으로, 테스트(node)에서는 module.exports 로 쓴다.
 
 /* =========================================================
-   설정 — 꼬리표 묶음
+   반 나누기 — 꼬리표 묶음 (화면의 「반 나누기」 탭에서 바꿈, 아래는 처음 값)
    같은 묶음 안에서 하나도 없는 사람은 그 묶음의 줄을 모두 봅니다.
    (예: 성별을 아직 안 적은 사람은 [남], [여] 줄을 둘 다 받음)
    ========================================================= */
-const TAG_GROUPS = [
-  ['탁구', '배드민턴'],
-  ['남', '여'],
-  ['1부', '2부', '3부', '4부'],
+const DEFAULT_TAG_GROUPS = [
+  { name: '체육', tags: ['탁구', '배드민턴'] },
+  { name: '성별', tags: ['남', '여'] },
+  { name: '시간', tags: ['1부', '2부', '3부', '4부'] },
 ];
+let TAG_GROUPS = DEFAULT_TAG_GROUPS.map((g) => g.tags);
+
+// 저장된 반 나누기를 적용 (같은 꼬리표가 두 곳에 있으면 앞의 것만)
+function setTagGroups(groups) {
+  const seen = new Set();
+  TAG_GROUPS = (groups || [])
+    .map((g) => (g.tags || []).map((t) => String(t).trim()).filter((t) => t && !seen.has(t) && seen.add(t)))
+    .filter((tags) => tags.length);
+}
 
 const DEFAULT_MONTH = {
   guide: '*9시~9시30분: 명상 *9시30분~11시30분: 본 수업 *11시30분~11시50분: 마무리(일지작성)',
@@ -82,7 +91,28 @@ function textFor(text, person) {
 
 // "탁구, 2부" / "탁구 2부" / "탁구/2부" → ['탁구', '2부']
 function splitTags(s) {
-  return String(s || '').split(/[,，/·\s]+/).map((t) => t.replace(/[\[\]]/g, '').trim()).filter(Boolean);
+  return String(s || '').split(/[,，/·\s]+/).map((t) => t.replace(/["\[\]]/g, '').trim()).filter(Boolean);
+}
+
+// 참여자 파일/붙여넣기 글자 → [{ name, tags[] }]
+// 한 줄에 한 사람. 이름과 꼬리표는 탭(엑셀), 쉼표(csv), 또는 띄어쓰기로 구분.
+//   홍길동<탭>탁구, 2부   /   홍길동,탁구,2부   /   홍길동 탁구 2부
+// 첫 줄이 '이름'으로 시작하면 제목 줄로 보고 건너뜀
+function parsePeopleText(text) {
+  const out = [];
+  for (const raw of String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    let cells;
+    if (line.includes('\t')) cells = line.split('\t');
+    else if (/[,，]/.test(line)) cells = line.split(/[,，]/);
+    else cells = line.split(/\s+/);
+    cells = cells.map((c) => c.trim().replace(/^"(.*)"$/, '$1'));
+    const name = cells[0];
+    if (!name || (!out.length && /^(이름|성명)$/.test(name))) continue;
+    out.push({ name, tags: splitTags(cells.slice(1).join(',')) });
+  }
+  return out;
 }
 
 // 참여자들에게 실제로 쓰인 꼬리표 (묶음 순서 먼저)
@@ -95,10 +125,10 @@ function usedTags(people) {
 }
 
 /* ===== 새 달: 지난달 같은 요일 패턴 복사 =====
-   N번째 주 월요일 ← 지난달 N번째 주 월요일
+   N번째 주 월요일 ← 지난달(또는 가장 가까운 이전 달) N번째 주 월요일
    없거나 그날이 공휴일(평일)이라 비어 있으면 직전 주 → 그래도 없으면 다음 주
    공휴일인 평일은 비운다 */
-function makeMonth(y, m, prev, isHoliday) {
+function makeMonth(y, m, prev, isHoliday, from) {
   const month = {
     title: `${m}월 일자리 근무 일정표 및 수업계획표`,
     guide: prev ? prev.guide : DEFAULT_MONTH.guide,
@@ -110,7 +140,8 @@ function makeMonth(y, m, prev, isHoliday) {
   const renamed = prev.title.replace(/^\s*\d{1,2}월/, `${m}월`);
   if (renamed !== prev.title) month.title = renamed;
 
-  const [py, pm] = shiftMonth(y, m, -1);
+  // from: 복사해 올 달 [년, 월] (없으면 지난달)
+  const [py, pm] = from || shiftMonth(y, m, -1);
   const occ = Array.from({ length: 7 }, () => []);
   for (let d = 1; d <= daysIn(py, pm); d++) occ[weekday(py, pm, d)].push(d);
   const usable = (d) => {
@@ -149,7 +180,7 @@ function normalizeMonth(data, m) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
-    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth,
+    DEFAULT_TAG_GROUPS, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
+    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText,
   };
 }

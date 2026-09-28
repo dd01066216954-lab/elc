@@ -71,3 +71,33 @@ test('저장된 데이터 모양 맞추기', () => {
   assert.strictEqual(n.title, '11월 일자리 근무 일정표 및 수업계획표');
   assert.deepStrictEqual(n.days, {});
 });
+
+test('참여자 파일 읽기: 탭·쉼표·띄어쓰기, 제목 줄, BOM', () => {
+  const list = R.parsePeopleText('﻿이름\t꼬리표\r\n홍길동\t탁구, 2부\r\n김철수,배드민턴,여\r\n이영희,"탁구, 남"\r\n박민수 남 1부\r\n\r\n최지우\r\n');
+  assert.deepStrictEqual(list, [
+    { name: '홍길동', tags: ['탁구', '2부'] },
+    { name: '김철수', tags: ['배드민턴', '여'] },
+    { name: '이영희', tags: ['탁구', '남'] },
+    { name: '박민수', tags: ['남', '1부'] },
+    { name: '최지우', tags: [] },
+  ]);
+});
+
+test('반 나누기를 바꾸면 거르기도 바뀜', () => {
+  const t = '[오전조] 조리실습 9시\n[오후조] 조리실습 1시';
+  // 처음 값에는 오전조/오후조 묶음이 없음 → 가진 사람만
+  assert.strictEqual(R.textFor(t, { tags: [] }), '');
+  R.setTagGroups([...R.DEFAULT_TAG_GROUPS, { name: '조리', tags: ['오전조', '오후조'] }]);
+  assert.strictEqual(R.textFor(t, { tags: [] }), '조리실습 9시\n조리실습 1시');
+  assert.strictEqual(R.textFor(t, { tags: ['오후조'] }), '조리실습 1시');
+  R.setTagGroups(R.DEFAULT_TAG_GROUPS);
+});
+
+test('새 달: 지난달이 없으면 더 이전 달에서 복사', () => {
+  const noH = () => false;
+  const aug = { title: '8월 일정표', guide: 'g', headers: ['일', '월', '화', '수', '목', '금', '토'], notes: '', days: { 3: '8월 첫째 월', 10: '8월 둘째 월' } };
+  const oct = R.makeMonth(2026, 10, aug, noH, [2026, 8]);
+  assert.strictEqual(oct.title, '10월 일정표');
+  assert.strictEqual(oct.days[5], '8월 첫째 월'); // 10/5 첫째 월 ← 8/3 첫째 월
+  assert.strictEqual(oct.days[12], '8월 둘째 월');
+});

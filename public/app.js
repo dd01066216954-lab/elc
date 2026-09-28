@@ -1,14 +1,14 @@
 'use strict';
-/* global TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
-// 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴)
-const TAG_COLORS = {
-  '탁구': '#e3f4e1', '배드민턴': '#fff1c7',
-  '남': '#e0ebfb', '여': '#fbe3ec',
-  '1부': '#efe6fa', '2부': '#dff2f4', '3부': '#fbecdc', '4부': '#eceff3',
-};
+// 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
+const TAG_PALETTE = ['#e3f4e1', '#fff1c7', '#e0ebfb', '#fbe3ec', '#efe6fa', '#dff2f4', '#fbecdc', '#e9f0d8', '#f6e3f7', '#e2eef0'];
 const TAG_COLOR_OTHER = '#eeeeee';
+function tagColor(tag) {
+  const i = TAG_GROUPS.flat().indexOf(tag);
+  return i < 0 ? TAG_COLOR_OTHER : TAG_PALETTE[i % TAG_PALETTE.length];
+}
 
 const BASE_FONT = 11;   // 칸 기본 글자 크기(px)
 const MIN_FONT = 6.5;   // 넘칠 때 줄일 수 있는 최소 크기
@@ -34,6 +34,13 @@ const state = {
   editing: null,
   conflict: null,        // { kind:'month'|'people', ym?, server }
   noticeShown: {},
+  savedMonths: new Set(), // 서버에 저장된 달
+  tagGroups: DEFAULT_TAG_GROUPS.map((g) => ({ name: g.name, tags: [...g.tags] })),
+  settingsSync: { pending: false, saving: false, again: false, error: false, timer: 0 },
+  tab: 'people',
+  pendingImport: null,
+  groupRows: [],        // 반 나누기 입력칸 [{ name, tags(글자) }]
+  pickerYear: 0,
   loadToken: 0,
   lastSaved: null,
 };
@@ -80,7 +87,7 @@ function linesHTML(text, mode, person) {
   for (const raw of (text || '').split('\n')) {
     const p = parseLine(raw);
     if (mode === 'edit') {
-      const bg = p.tags.length ? ` tagged" style="background:${TAG_COLORS[p.tags[0]] || TAG_COLOR_OTHER}` : '';
+      const bg = p.tags.length ? ` tagged" style="background:${tagColor(p.tags[0])}` : '';
       const body = p.head ? `<span class="tg">${esc(p.head)}</span>${esc(p.rest)}` : esc(p.rest);
       out.push(`<div class="ln ${p.color}${bg}">${body || '<br>'}</div>`);
     } else if (mode === 'full') {
@@ -165,7 +172,7 @@ function sheetHTML(ym, mo, mode, person) {
 
 function render() {
   const mo = cur();
-  $('monthLabel').textContent = `${state.y}년 ${state.m}월`;
+  $('monthLabel').textContent = `${state.y}년 ${state.m}월 ▾`;
   if (!mo) return;
   const person = previewPerson();
   const sheet = $('sheet');
@@ -234,6 +241,30 @@ async function fetchMonth(ym) {
   return data; // { data, updatedAt }
 }
 
+// 새 달을 채울 때 쓸 달: 지난달, 없으면 저장된 달 중 가장 가까운 이전 달
+async function findSourceMonth(y, m) {
+  const [py, pm] = shiftMonth(y, m, -1);
+  const pym = ymKey(py, pm);
+  if (state.months[pym]) return [py, pm];
+  await loadSavedMonths();
+  const earlier = [...state.savedMonths].filter((k) => k < ymKey(y, m)).sort().pop();
+  if (!earlier) return null;
+  const [ey, em] = earlier.split('-').map(Number);
+  if (!state.months[earlier]) {
+    const r = await fetchMonth(earlier);
+    if (!r.data) return null;
+    state.months[earlier] = { data: normalizeMonth(r.data, em), updatedAt: r.updatedAt };
+  }
+  return [ey, em];
+}
+
+async function loadSavedMonths() {
+  try {
+    const { data } = await api('/months');
+    state.savedMonths = new Set(data.months);
+  } catch (e) { if (e.status === 401) throw e; }
+}
+
 async function openMonth(y, m) {
   const token = ++state.loadToken;
   stopEdit();
@@ -241,7 +272,7 @@ async function openMonth(y, m) {
   state.y = y;
   state.m = m;
   try { localStorage.setItem('lastMonth', ymKey(y, m)); } catch (e) { /* 무시 */ }
-  $('monthLabel').textContent = `${y}년 ${m}월`;
+  $('monthLabel').textContent = `${y}년 ${m}월 ▾`;
   const ym = ymKey(y, m);
   let copied = false;
   document.body.classList.add('loading');
@@ -253,18 +284,14 @@ async function openMonth(y, m) {
       if (r.data) {
         state.months[ym] = { data: normalizeMonth(r.data, m), updatedAt: r.updatedAt };
       } else {
-        const [py, pm] = shiftMonth(y, m, -1);
-        const pym = ymKey(py, pm);
-        await loadHolidays(py, pm);
-        if (!state.months[pym]) {
-          const pr = await fetchMonth(pym);
-          if (pr.data) state.months[pym] = { data: normalizeMonth(pr.data, pm), updatedAt: pr.updatedAt };
-        }
+        const src = await findSourceMonth(y, m);
         if (token !== state.loadToken) return;
-        const prev = state.months[pym] && state.months[pym].data;
+        if (src) await loadHolidays(src[0], src[1]);
+        if (token !== state.loadToken) return;
+        const prev = src && state.months[ymKey(src[0], src[1])].data;
         // 아직 저장하지 않음 — 처음 고칠 때 저장된다
-        state.months[ym] = { data: makeMonth(y, m, prev, holidayName), updatedAt: null };
-        copied = !!prev;
+        state.months[ym] = { data: makeMonth(y, m, prev, holidayName, src), updatedAt: null };
+        copied = src;
       }
     }
   } catch (e) {
@@ -278,7 +305,9 @@ async function openMonth(y, m) {
   render();
   if (copied && !state.noticeShown[ym]) {
     state.noticeShown[ym] = true;
-    showNotice('지난달 기준으로 채웠어요. 바뀐 날만 고치세요.', [{ label: '확인', fn: hideNotice }]);
+    const [py, pm] = shiftMonth(y, m, -1);
+    const base = copied[0] === py && copied[1] === pm ? '지난달' : `${copied[0] !== y ? copied[0] + '년 ' : ''}${copied[1]}월`;
+    showNotice(`${base} 기준으로 채웠어요. 바뀐 날만 고치세요.`, [{ label: '확인', fn: hideNotice }]);
   } else if (!state.conflict) {
     hideNotice();
   }
@@ -313,6 +342,7 @@ async function saveMonth(ym, force = false) {
       e.updatedAt = r.data.updatedAt;
       e.error = false;
       state.lastSaved = new Date();
+      state.savedMonths.add(ym);
     }
   } catch (err) {
     e.pending = true;
@@ -369,7 +399,7 @@ async function savePeople(force = false) {
   }
 }
 
-function syncs() { return [...Object.values(state.months), state.peopleSync]; }
+function syncs() { return [...Object.values(state.months), state.peopleSync, state.settingsSync]; }
 function hasUnsaved() { return syncs().some((e) => e.pending || e.saving); }
 
 function updateSaveState() {
@@ -654,6 +684,7 @@ function rowsChanged() {
   fillPreviewSelect();
   renderTagSummary();
   markPeopleDirty();
+  if (state.tab === 'groups') renderGroupNotes();
 }
 
 function renderPeople() {
@@ -715,6 +746,208 @@ function forgetHolidayMonth(date) {
   delete state.holidayLoaded[date.slice(0, 7)];
 }
 
+
+/* ===== 달 한 번에 옮기기 (월 선택판) ===== */
+function openPicker() {
+  const p = $('monthPicker');
+  if (!p.hidden) { p.hidden = true; return; }
+  state.pickerYear = state.y;
+  renderPicker();
+  p.hidden = false;
+  loadSavedMonths().then(renderPicker, () => {});
+}
+function renderPicker() {
+  const y = state.pickerYear;
+  const now = new Date();
+  let grid = '';
+  for (let m = 1; m <= 12; m++) {
+    const cls = ['mp-m'];
+    if (y === state.y && m === state.m) cls.push('cur');
+    if (y === now.getFullYear() && m === now.getMonth() + 1) cls.push('today');
+    if (state.savedMonths.has(ymKey(y, m))) cls.push('saved');
+    grid += `<button type="button" class="${cls.join(' ')}" data-m="${m}">${m}월</button>`;
+  }
+  $('monthPicker').innerHTML = `
+    <div class="mp-head">
+      <button type="button" class="iconbtn" data-y="-1" aria-label="이전 해">◀</button>
+      <b>${y}년</b>
+      <button type="button" class="iconbtn" data-y="1" aria-label="다음 해">▶</button>
+    </div>
+    <div class="mp-grid">${grid}</div>
+    <div class="mp-foot"><span class="mp-legend"><i></i> 만들어 둔 달</span><button type="button" class="btn" data-thismonth>이번 달로</button></div>`;
+}
+
+/* ===== 반 나누기 ===== */
+function applyTagGroups(groups) {
+  state.tagGroups = groups;
+  setTagGroups(groups);
+}
+function markSettingsDirty() {
+  const s = state.settingsSync;
+  s.pending = true;
+  clearTimeout(s.timer);
+  s.timer = setTimeout(saveSettings, SAVE_DELAY);
+  updateSaveState();
+}
+async function saveSettings() {
+  const s = state.settingsSync;
+  if (s.saving) { s.again = true; return; }
+  clearTimeout(s.timer);
+  s.saving = true;
+  s.pending = false;
+  updateSaveState();
+  try {
+    await api('/settings', { method: 'PUT', body: { tagGroups: state.tagGroups } });
+    s.error = false;
+    state.lastSaved = new Date();
+  } catch (err) {
+    s.pending = true;
+    s.error = true;
+    if (err.status !== 401) s.timer = setTimeout(saveSettings, 5000);
+  } finally {
+    s.saving = false;
+    if (s.again) { s.again = false; saveSettings(); }
+    updateSaveState();
+  }
+}
+
+function renderGroups() {
+  const rows = state.groupRows;
+  if (!rows.length || rows[rows.length - 1].name || rows[rows.length - 1].tags) rows.push({ name: '', tags: '' });
+  $('groupRows').innerHTML = rows.map((r, i) => `<tr>
+      <td><input id="g-name-${i}" data-g="${i}" data-c="name" value="${esc(r.name)}" placeholder="${i === rows.length - 1 ? '예: 조리실습' : ''}" autocomplete="off" aria-label="${i + 1}번 나누기 이름"></td>
+      <td><input id="g-tags-${i}" data-g="${i}" data-c="tags" value="${esc(r.tags)}" placeholder="${i === rows.length - 1 ? '예: 오전조, 오후조' : ''}" autocomplete="off" aria-label="${i + 1}번 꼬리표들"></td>
+      <td>${r.name || r.tags ? `<button type="button" class="iconbtn small" data-gdel="${i}" aria-label="${i + 1}번 줄 지우기">✕</button>` : ''}</td>
+    </tr>`).join('');
+  renderGroupNotes();
+}
+
+function groupsChanged() {
+  applyTagGroups(state.groupRows
+    .map((r) => ({ name: r.name.trim(), tags: splitTags(r.tags) }))
+    .filter((g) => g.tags.length));
+  renderGroupNotes();
+  markSettingsDirty();
+}
+
+// 반 나누기 화면 아래 안내: 참여자 인원, 겹친 꼬리표, 나누기에 없는 꼬리표
+function renderGroupNotes() {
+  const notes = [];
+  const seen = new Map();
+  for (const g of state.tagGroups) {
+    for (const t of g.tags) {
+      if (seen.has(t)) notes.push(`「${t}」가 「${seen.get(t) || '이름 없음'}」과 「${g.name || '이름 없음'}」 두 곳에 있어요. 앞의 것만 쓰여요.`);
+      else seen.set(t, g.name);
+    }
+  }
+  for (const t of usedTags(state.people)) {
+    if (!seen.has(t)) notes.push(`참여자 꼬리표 「${t}」는 어느 나누기에도 없어요. [${t}] 줄은 「${t}」인 사람만 받아요.`);
+  }
+  const counts = state.tagGroups.map((g) => {
+    const parts = g.tags.map((t) => `${esc(t)} ${state.people.filter((p) => p.tags.includes(t)).length}명`);
+    const none = state.people.filter((p) => !g.tags.some((t) => p.tags.includes(t))).length;
+    if (none) parts.push(`<span class="muted">안 정해짐 ${none}명</span>`);
+    return `<li><b>${esc(g.name || '이름 없음')}</b> · ${parts.join(' · ')}</li>`;
+  });
+  $('groupNotes').innerHTML = (counts.length ? `<ul class="groupcounts">${counts.join('')}</ul>` : '') +
+    notes.map((n) => `<p class="warn">${esc(n)}</p>`).join('');
+}
+
+/* ===== 참여자 파일 불러오기 · 내려받기 ===== */
+function decodeText(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) {
+    return new TextDecoder('euc-kr').decode(buf); // 한글 윈도우 메모장·엑셀 CSV
+  }
+}
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    el.onload = resolve;
+    el.onerror = () => reject(new Error('엑셀 파일을 읽지 못했어요. 엑셀에서 「다른 이름으로 저장 → CSV」로 저장해 올려 주세요.'));
+    document.head.appendChild(el);
+  });
+}
+async function readPeopleFile(file) {
+  try {
+    let text;
+    if (/\.xlsx?$/i.test(file.name)) {
+      await loadXlsx();
+      const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      text = window.XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]], { FS: '\t', blankrows: false });
+    } else {
+      text = decodeText(await file.arrayBuffer());
+    }
+    const list = parsePeopleText(text);
+    if (!list.length) {
+      toast('파일에서 이름을 찾지 못했어요. 한 줄에 한 사람씩, 이름 다음에 꼬리표를 적어 주세요.');
+      return;
+    }
+    showImport(list, file.name);
+  } catch (e) {
+    toast(e.message);
+  }
+}
+function showImport(list, fileName) {
+  state.pendingImport = list;
+  const have = state.people.length;
+  const sample = list.slice(0, 5).map((p) => `<li>${esc(p.name)}${p.tags.length ? ` <span class="muted">· ${esc(p.tags.join(', '))}</span>` : ''}</li>`).join('');
+  const box = $('importBox');
+  box.innerHTML = `<p><b>${esc(fileName)}</b>에서 <b>${list.length}명</b>을 읽었어요.</p>
+    <ol class="importlist">${sample}${list.length > 5 ? `<li class="muted">… 외 ${list.length - 5}명</li>` : ''}</ol>
+    <div class="acts">
+      <button type="button" class="btn primary" data-imp="replace">${have ? `지금 명단(${have}명)을 이걸로 바꾸기` : '명단에 넣기'}</button>
+      ${have ? '<button type="button" class="btn" data-imp="append">지금 명단 뒤에 붙이기</button>' : ''}
+      <button type="button" class="btn" data-imp="cancel">취소</button>
+    </div>`;
+  box.hidden = false;
+  box.scrollIntoView({ block: 'nearest' });
+}
+function applyImport(mode) {
+  const list = state.pendingImport;
+  state.pendingImport = null;
+  $('importBox').hidden = true;
+  if (!list || mode === 'cancel') return;
+  const before = state.peopleRows.map((r) => ({ ...r }));
+  const rows = list.map((p) => ({ name: p.name, tags: p.tags.join(', ') }));
+  let msg;
+  if (mode === 'replace') {
+    state.peopleRows = rows;
+    msg = `명단을 ${rows.length}명으로 바꿨어요.`;
+  } else {
+    const names = new Set(state.people.map((p) => p.name));
+    const fresh = rows.filter((r) => !names.has(r.name));
+    state.peopleRows = state.peopleRows.filter((r) => r.name || r.tags).concat(fresh);
+    msg = `${fresh.length}명을 붙였어요.${rows.length - fresh.length ? ` 이미 있는 ${rows.length - fresh.length}명은 그대로 뒀어요.` : ''}`;
+  }
+  renderPeople();
+  rowsChanged();
+  toast(msg, { label: '되돌리기', fn: () => { state.peopleRows = before; renderPeople(); rowsChanged(); } });
+}
+function exportPeople() {
+  const text = '이름\t꼬리표\r\n' + state.people.map((p) => `${p.name}\t${p.tags.join(', ')}`).join('\r\n') + '\r\n';
+  const url = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/plain;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '참여자명단.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function setTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('#peopleView [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('#peopleView [data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== tab; });
+  if (tab === 'groups') {
+    state.groupRows = state.tagGroups.map((g) => ({ name: g.name, tags: g.tags.join(', ') }));
+    renderGroups();
+  }
+  if (tab === 'holidays') loadCustomHolidays();
+}
+
 /* ===== 화면 전환 ===== */
 function setView(view) {
   stopEdit();
@@ -724,10 +957,11 @@ function setView(view) {
   $('loginView').hidden = view !== 'login';
   $('peopleView').hidden = view !== 'people';
   $('printPanel').hidden = true;
+  $('monthPicker').hidden = true;
   if (view === 'people') {
     state.peopleRows = state.people.map((p) => ({ name: p.name, tags: p.tags.join(', ') }));
     renderPeople();
-    loadCustomHolidays();
+    setTab(state.tab);
     $('notice').hidden = true;
     window.scrollTo(0, 0);
   }
@@ -782,7 +1016,8 @@ function afterPrint() {
 
 /* ===== 시작 ===== */
 async function boot() {
-  const { data } = await api('/people');
+  const [{ data }, settings] = await Promise.all([api('/people'), api('/settings')]);
+  if (settings.data.tagGroups) applyTagGroups(settings.data.tagGroups);
   setPeople(data.people, data.updatedAt);
   state.booted = true;
   let y = state.y, m = state.m;
@@ -810,6 +1045,84 @@ function bind() {
   $('nextMonth').addEventListener('click', () => openMonth(...shiftMonth(state.y, state.m, 1)));
   $('previewSelect').addEventListener('change', (e) => setPreview(e.target.value));
   $('peopleBtn').addEventListener('click', () => setView('people'));
+  $('monthLabel').addEventListener('click', openPicker);
+  $('monthPicker').addEventListener('click', (e) => {
+    e.stopPropagation(); // 연도를 바꾸면 버튼이 새로 그려져서 바깥 클릭으로 잘못 알고 닫히는 것 막기
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.y) { state.pickerYear += +b.dataset.y; renderPicker(); return; }
+    let y = state.pickerYear, m = +b.dataset.m;
+    if (b.hasAttribute('data-thismonth')) { const t = new Date(); y = t.getFullYear(); m = t.getMonth() + 1; }
+    if (!m) return;
+    $('monthPicker').hidden = true;
+    openMonth(y, m);
+  });
+  document.addEventListener('click', (e) => {
+    const p = $('monthPicker');
+    if (!p.hidden && !e.target.closest('#monthPicker, #monthLabel')) p.hidden = true;
+  });
+  document.querySelectorAll('#peopleView [data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+  // 반 나누기 표
+  const groupRows = $('groupRows');
+  groupRows.addEventListener('input', (e) => {
+    const inp = e.target;
+    if (!inp.dataset.g) return;
+    const i = +inp.dataset.g;
+    state.groupRows[i][inp.dataset.c] = inp.value;
+    if (i === state.groupRows.length - 1) {
+      const id = inp.id;
+      const pos = inp.selectionStart;
+      renderGroups();
+      $(id).focus();
+      $(id).setSelectionRange(pos, pos);
+    }
+    groupsChanged();
+  });
+  groupRows.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-gdel]');
+    if (!b) return;
+    const before = state.groupRows.map((r) => ({ ...r }));
+    const gone = state.groupRows.splice(+b.dataset.gdel, 1)[0];
+    renderGroups();
+    groupsChanged();
+    toast(`「${gone.name || gone.tags}」 나누기를 지웠어요.`, {
+      label: '되돌리기', fn: () => { state.groupRows = before; renderGroups(); groupsChanged(); },
+    });
+  });
+  $('resetGroups').addEventListener('click', () => {
+    const before = state.groupRows.map((r) => ({ ...r }));
+    state.groupRows = DEFAULT_TAG_GROUPS.map((g) => ({ name: g.name, tags: g.tags.join(', ') }));
+    renderGroups();
+    groupsChanged();
+    toast('처음 값으로 돌렸어요.', { label: '되돌리기', fn: () => { state.groupRows = before; renderGroups(); groupsChanged(); } });
+  });
+
+  // 참여자 파일
+  $('peopleFile').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (f) readPeopleFile(f);
+  });
+  $('exportPeople').addEventListener('click', exportPeople);
+  $('importBox').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-imp]');
+    if (b) applyImport(b.dataset.imp);
+  });
+  const pv = $('peopleView');
+  pv.addEventListener('dragover', (e) => {
+    if (state.tab !== 'people' || !e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    pv.classList.add('dropping');
+  });
+  pv.addEventListener('dragleave', (e) => { if (!pv.contains(e.relatedTarget)) pv.classList.remove('dropping'); });
+  pv.addEventListener('drop', (e) => {
+    pv.classList.remove('dropping');
+    if (state.tab !== 'people') return;
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) readPeopleFile(f);
+  });
   $('backBtn').addEventListener('click', () => setView('calendar'));
   $('printBtn').addEventListener('click', openPrintPanel);
   $('holidayWarn').addEventListener('click', () => toast(state.holidayWarn));
@@ -962,7 +1275,7 @@ function bind() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && state.pick) cancelPick();
-    if (e.key === 'Escape') $('printPanel').hidden = true;
+    if (e.key === 'Escape') { $('printPanel').hidden = true; $('monthPicker').hidden = true; }
   });
 
   // 사용법: 닫으면 상단 [사용법] 버튼으로 다시 열 수 있음

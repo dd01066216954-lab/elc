@@ -76,7 +76,48 @@ button, select { font: inherit; color: inherit; }
 }
 .bar-left, .bar-right { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .monthnav { display: flex; align-items: center; gap: 4px; }
-.monthlabel { font-size: 18px; font-weight: 700; min-width: 7.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.monthnav { position: relative; }
+.monthlabel {
+  font-size: 18px; font-weight: 700; min-width: 8.5em; text-align: center; font-variant-numeric: tabular-nums;
+  border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer;
+}
+.monthlabel:hover, .monthlabel[aria-expanded="true"] { border-color: var(--bar-line); background: var(--accent-soft); }
+
+/* 월 선택판 */
+.monthpicker {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 26;
+  width: 290px;
+  padding: 12px;
+  background: var(--bar);
+  border: 1px solid var(--bar-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 30, 50, .2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mp-head { display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
+.mp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.mp-m {
+  position: relative;
+  padding: 9px 0;
+  border: 1px solid var(--bar-line);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.mp-m:hover { background: var(--accent-soft); }
+.mp-m.saved::after { content: ""; position: absolute; top: 4px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.mp-m.today { border-color: var(--accent); }
+.mp-m.cur { background: var(--accent); color: var(--bar); border-color: var(--accent); font-weight: 700; }
+.mp-m.cur::after { background: var(--bar); }
+.mp-foot { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--ui-muted); }
+.mp-legend i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); vertical-align: middle; margin-right: 3px; }
+.mp-foot .btn { padding: 5px 10px; font-size: 13px; }
 .iconbtn {
   border: 1px solid var(--bar-line);
   background: transparent;
@@ -439,7 +480,40 @@ body.loading .sheet { opacity: .45; transition: opacity .2s; }
 }
 .peopleview h1 { font-size: 22px; margin: 0; }
 .peopleview h2 { font-size: 17px; margin: 28px 0 4px; padding-top: 18px; border-top: 1px solid var(--bar-line); }
-.pv-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pv-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--bar-line); }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs [role="tab"] {
+  border: 0;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--ui-muted);
+  font-weight: 500;
+}
+.tabs [role="tab"]:hover { background: var(--accent-soft); color: var(--ui-text); }
+.tabs [role="tab"][aria-selected="true"] { background: var(--accent); color: var(--bar); }
+.pv-titlerow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 18px; }
+.pv-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+label.btn { display: inline-block; }
+.peopleview.dropping { outline: 3px dashed var(--accent); outline-offset: -8px; }
+.importbox {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.importbox p { margin: 0; }
+.importlist { margin: 0; padding-left: 1.4em; font-size: 13.5px; }
+.importbox .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.gtable tr > td:first-child { width: 32%; }
+.groupnotes { margin-top: 12px; font-size: 13.5px; display: flex; flex-direction: column; gap: 6px; }
+.groupcounts { margin: 0; padding-left: 1.2em; color: var(--ui-text); }
+.groupnotes .warn { margin: 0; padding: 6px 10px; border-radius: 6px; background: var(--warn-bg); border: 1px solid var(--warn-line); }
 .pv-help { color: var(--ui-muted); font-size: 13.5px; margin: 10px 0 12px; }
 .muted { color: var(--ui-muted); }
 .ptable-wrap { overflow-x: auto; }

@@ -14,7 +14,8 @@
   <div class="bar-left">
     <div class="monthnav">
       <button type="button" id="prevMonth" class="iconbtn" aria-label="지난달">◀</button>
-      <span id="monthLabel" class="monthlabel">2026년 9월</span>
+      <button type="button" id="monthLabel" class="monthlabel" aria-haspopup="true" title="눌러서 원하는 달로 바로 가기">2026년 9월 ▾</button>
+      <div id="monthPicker" class="monthpicker" hidden></div>
       <button type="button" id="nextMonth" class="iconbtn" aria-label="다음달">▶</button>
     </div>
     <span id="saveState" class="savestate" role="status" aria-live="polite">불러오는 중…</span>
@@ -26,7 +27,7 @@
       <select id="previewSelect"></select>
     </label>
     <button type="button" id="helpBtn" class="btn" hidden>사용법</button>
-    <button type="button" id="peopleBtn" class="btn">참여자</button>
+    <button type="button" id="peopleBtn" class="btn">참여자·설정</button>
     <div class="printwrap">
       <button type="button" id="printBtn" class="btn primary">개인별 인쇄</button>
       <div id="printPanel" class="printpanel" hidden>
@@ -69,33 +70,67 @@
   </div>
 </main>
 
-<section id="peopleView" class="peopleview ui" hidden aria-label="참여자">
+<section id="peopleView" class="peopleview ui" hidden aria-label="참여자와 설정">
   <div class="pv-head">
     <button type="button" id="backBtn" class="btn">◀ 달력으로</button>
-    <h1>참여자</h1>
-    <span id="peopleCount" class="muted"></span>
-  </div>
-  <p class="pv-help">엑셀에서 <b>이름</b>과 <b>꼬리표</b> 두 칸을 복사해서 아래 표 첫 칸에 붙여넣으면 한꺼번에 들어가요.
-    꼬리표가 여러 개면 쉼표로 적어요. 예) <span class="chip">탁구, 남, 2부</span></p>
-  <div class="ptable-wrap">
-    <table class="ptable">
-      <thead><tr><th class="num">#</th><th>이름</th><th>꼬리표</th><th></th></tr></thead>
-      <tbody id="peopleRows"></tbody>
-    </table>
-  </div>
-  <div class="pv-row">
-    <button type="button" id="addPerson" class="btn">+ 한 줄 추가</button>
-    <div id="tagSummary" class="tagsummary"></div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="people" aria-selected="true">참여자</button>
+      <button type="button" role="tab" data-tab="groups" aria-selected="false">반 나누기</button>
+      <button type="button" role="tab" data-tab="holidays" aria-selected="false">기관 휴무일</button>
+    </div>
   </div>
 
-  <h2>기관 휴무일</h2>
-  <p class="pv-help">공휴일은 저절로 들어가요. 그 밖에 센터가 쉬는 날(예: 근로자의 날)만 여기에 넣으면 달력에 빨간 글씨로 나와요.</p>
-  <ul id="customHolidays" class="holidaylist"></ul>
-  <form id="customForm" class="holidayform">
-    <input type="date" id="chDate" aria-label="날짜" required>
-    <input id="chName" placeholder="예: 근로자의 날" aria-label="이름" maxlength="30" required>
-    <button type="submit" class="btn">넣기</button>
-  </form>
+  <div data-panel="people">
+    <div class="pv-titlerow">
+      <h1>참여자</h1>
+      <span id="peopleCount" class="muted"></span>
+      <div class="pv-actions">
+        <label class="btn primary" for="peopleFile">파일에서 불러오기</label>
+        <input type="file" id="peopleFile" accept=".txt,.csv,.tsv,.xlsx,.xls" hidden>
+        <button type="button" id="exportPeople" class="btn">명단 파일로 받기</button>
+      </div>
+    </div>
+    <p class="pv-help">엑셀·메모장 파일(.xlsx, .csv, .txt)을 <b>불러오거나 이 화면에 끌어다 놓으면</b> 한 번에 들어가요.
+      한 줄에 한 사람, <b>이름</b> 다음 칸에 <b>꼬리표</b>를 적으면 돼요. 예) <span class="chip">홍길동 | 탁구, 남, 2부</span>
+      <br>엑셀에서 두 칸을 복사해 아래 표 첫 칸에 붙여넣어도 돼요.</p>
+    <div id="importBox" class="importbox" hidden></div>
+    <div class="ptable-wrap">
+      <table class="ptable">
+        <thead><tr><th class="num">#</th><th>이름</th><th>꼬리표</th><th></th></tr></thead>
+        <tbody id="peopleRows"></tbody>
+      </table>
+    </div>
+    <div class="pv-row">
+      <button type="button" id="addPerson" class="btn">+ 한 줄 추가</button>
+      <div id="tagSummary" class="tagsummary"></div>
+    </div>
+  </div>
+
+  <div data-panel="groups" hidden>
+    <div class="pv-titlerow"><h1>반 나누기</h1></div>
+    <p class="pv-help">수업을 나누는 기준을 적어요. 한 줄에 <b>한 사람이 그중 하나만 가지는 꼬리표</b>들을 쉼표로 적어요.
+      <br>예) 체육 → 탁구, 배드민턴: 달력에 <span class="chip">[탁구]</span>를 붙인 줄은 탁구인 사람만 받고,
+      탁구·배드민턴 어느 쪽도 아직 안 정해진 사람은 두 줄을 다 받아요.</p>
+    <div class="ptable-wrap">
+      <table class="ptable gtable">
+        <thead><tr><th>나누는 기준</th><th>꼬리표 (쉼표로)</th><th></th></tr></thead>
+        <tbody id="groupRows"></tbody>
+      </table>
+    </div>
+    <div id="groupNotes" class="groupnotes"></div>
+    <div class="pv-row"><button type="button" id="resetGroups" class="btn">처음 값으로 돌리기</button></div>
+  </div>
+
+  <div data-panel="holidays" hidden>
+    <div class="pv-titlerow"><h1>기관 휴무일</h1></div>
+    <p class="pv-help">공휴일과 대체공휴일은 저절로 들어가요. 그 밖에 센터가 쉬는 날(예: 근로자의 날)만 여기에 넣으면 달력에 빨간 글씨로 나와요.</p>
+    <ul id="customHolidays" class="holidaylist"></ul>
+    <form id="customForm" class="holidayform">
+      <input type="date" id="chDate" aria-label="날짜" required>
+      <input id="chName" placeholder="예: 근로자의 날" aria-label="이름" maxlength="30" required>
+      <button type="submit" class="btn">넣기</button>
+    </form>
+  </div>
 </section>
 
 <section id="loginView" class="loginview ui" hidden>
