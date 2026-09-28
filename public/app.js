@@ -469,7 +469,7 @@ function renderPreviewBanner() {
   const person = previewPerson();
   if (n.dataset.kind === 'notice' && !n.hidden) return;
   if (!person) { n.hidden = true; return; }
-  n.innerHTML = `<p><b>${esc(person.name)}</b> 님 계획표로 보는 중이에요. 이 상태에서는 고칠 수 없어요.</p><div class="acts"><button type="button" class="btn">다시 고치기</button></div>`;
+  n.innerHTML = `<p><b>${esc(person.name)}</b> 님이 받을 종이를 보는 중이에요. 고치려면 오른쪽 버튼을 누르세요.</p><div class="acts"><button type="button" class="btn">다시 고치기</button></div>`;
   n.querySelector('button').addEventListener('click', () => { $('previewSelect').value = ''; setPreview(''); });
   n.hidden = false;
   n.dataset.kind = 'preview';
@@ -511,7 +511,7 @@ function bind() {
   $('nextMonth').addEventListener('click', () => goMonth(1));
 
   const sel = $('previewSelect');
-  sel.innerHTML = '<option value="">전체 (고치기)</option>' +
+  sel.innerHTML = '<option value="">모두 보기 (고치는 중)</option>' +
     state.people.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}${p.tags.length ? ` · ${esc(p.tags.join(', '))}` : ''}</option>`).join('');
   sel.addEventListener('change', () => setPreview(sel.value));
 
@@ -558,13 +558,17 @@ function bind() {
     if (e.key === 'Escape' && state.pick) cancelPick();
   });
 
+  // 사용법: 닫으면 상단 [사용법] 버튼으로 다시 열 수 있음
+  const setGuide = (open) => {
+    $('hint').hidden = !open;
+    $('helpBtn').hidden = open;
+    try { localStorage.setItem('hintClosed', open ? '0' : '1'); } catch (e) { /* 무시 */ }
+  };
   try {
-    if (localStorage.getItem('hintClosed') === '1') $('hint').hidden = true;
+    if (localStorage.getItem('hintClosed') === '1') { $('hint').hidden = true; $('helpBtn').hidden = false; }
   } catch (e) { /* 저장소 없음 */ }
-  $('hintClose').addEventListener('click', () => {
-    $('hint').hidden = true;
-    try { localStorage.setItem('hintClosed', '1'); } catch (e) { /* 무시 */ }
-  });
+  $('hintClose').addEventListener('click', () => setGuide(false));
+  $('helpBtn').addEventListener('click', () => setGuide(true));
 
   window.addEventListener('resize', fitZoom);
   window.addEventListener('scroll', positionTools, { passive: true });

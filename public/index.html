@@ -21,9 +21,10 @@
   </div>
   <div class="bar-right">
     <label class="previewpick" for="previewSelect">
-      <span>미리보기</span>
+      <span>누구 계획표로 볼까요?</span>
       <select id="previewSelect"></select>
     </label>
+    <button type="button" id="helpBtn" class="btn" hidden>사용법</button>
     <button type="button" id="peopleBtn" class="btn">참여자</button>
     <button type="button" id="printBtn" class="btn primary">개인별 인쇄</button>
   </div>
@@ -31,11 +32,25 @@
 
 <div id="notice" class="notice ui" hidden></div>
 
-<div id="hint" class="hint ui">
-  <p>칸을 누르면 바로 고칠 수 있어요. 줄 앞에 <b class="chip">[탁구]</b>처럼 쓰면 그 사람 계획표에만 들어가요.
-    <span class="c-blue">*</span>·<span class="c-blue">→</span>로 시작하면 파란 글씨, <span class="c-red">!</span>로 시작하면 빨간 글씨.</p>
-  <button type="button" id="hintClose" class="iconbtn small" aria-label="안내 닫기">✕</button>
-</div>
+<section id="hint" class="guide ui" aria-label="사용법">
+  <ol class="steps">
+    <li>
+      <b>고치기</b>
+      <p>아래 종이에서 <u>날짜 칸을 누르고</u> 한글처럼 바로 쓰세요. 제목·요일·맨 아래 안내문도 눌러서 고쳐요.</p>
+    </li>
+    <li>
+      <b>반마다 다른 줄</b>
+      <p>줄 맨 앞에 <span class="chip">[탁구]</span>를 붙이면 탁구반 계획표에만 들어가요. 안 붙인 줄은 모두에게 들어가요.</p>
+      <p class="eg">예) <span class="chip">[탁구]</span> <span class="c-blue">*체육(탁구)</span> &nbsp; <span class="chip y">[배드민턴]</span> <span class="c-blue">*체육(배드민턴)</span></p>
+    </li>
+    <li>
+      <b>확인하고 인쇄</b>
+      <p>오른쪽 위 <u>「누구 계획표로 볼까요?」</u>에서 이름을 고르면 그 사람이 받을 종이가 보여요. 다 됐으면 <u>개인별 인쇄</u>.</p>
+    </li>
+  </ol>
+  <p class="colors">글자색: <span class="c-blue">*</span> 또는 <span class="c-blue">→</span>로 시작하면 <span class="c-blue">파란 글씨</span>, <span class="c-red">!</span>로 시작하면 <span class="c-red">빨간 글씨</span>(인쇄할 때 !는 지워져요)</p>
+  <button type="button" id="hintClose" class="iconbtn small" aria-label="사용법 닫기">✕</button>
+</section>
 
 <main class="desk">
   <div id="sheetWrap" class="sheet-wrap">
