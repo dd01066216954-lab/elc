@@ -87,8 +87,10 @@ test('참여자 저장', async () => {
 test('반 나누기 설정 저장 · 저장된 달 목록', async () => {
   assert.strictEqual((await call('/settings')).data.tagGroups, null);
   assert.strictEqual((await call('/settings')).data.snippets, null);
-  await call('/settings', { method: 'PUT', body: { snippets: [{ name: '영화', text: '출근\n*영화' }, { name: '', text: ' ' }] } });
-  assert.deepStrictEqual((await call('/settings')).data.snippets, [{ name: '영화', text: '출근\n*영화' }]);
+  assert.strictEqual((await call('/settings')).data.snippetsVersion, 1);
+  await call('/settings', { method: 'PUT', body: { snippets: [{ kind: 'place', name: '강당', text: '→강당' }, { name: '', text: ' ' }], snippetsVersion: 2 } });
+  assert.deepStrictEqual((await call('/settings')).data.snippets, [{ kind: 'place', name: '강당', text: '→강당' }]);
+  assert.strictEqual((await call('/settings')).data.snippetsVersion, 2);
   await call('/settings', { method: 'PUT', body: { tagGroups: [{ name: '조리', tags: ['오전조', ' 오후조 ', ''] }] } });
   assert.deepStrictEqual((await call('/settings')).data.tagGroups, [{ name: '조리', tags: ['오전조', '오후조'] }]);
   assert.deepStrictEqual((await call('/months')).data.months, ['2026-09', '2026-10']);

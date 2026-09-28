@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, recolorLine, lineColorName, cellLines, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, SNIPPETS_VERSION, lineColorName, cellLines, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -1010,6 +1010,7 @@ function renderSnipbar() {
   const list = (kind) => state.snippets.map((x, i) => (x.kind === kind ? chip(x, i) : '')).join('');
   $('snipWork').innerHTML = list('work') || '<span class="muted small">없음</span>';
   $('snipAct').innerHTML = list('activity') || '<span class="muted small">없음</span>';
+  $('snipPlace').innerHTML = list('place') || '<span class="muted small">없음</span>';
   $('snipbar').classList.toggle('editing', !!ed);
   let on = '';
   if (ed) {
@@ -1050,8 +1051,17 @@ function snipClick(i) {
     // 고치는 중인 칸: 출근은 바꾸기(같은 것 다시 누르면 빼기), 활동은 넣기/빼기
     const ta = ed.ta;
     const adding = !hasBlock(ta.value, x);
-    ta.value = x.kind === 'work' ? applyWork(ta.value, x) : toggleActivity(ta.value, x);
-    ed.lastBlock = adding ? cellLines(x.text) : null; // 글자색 버튼이 바꿀 줄
+    if (x.kind === 'place') {
+      // 장소: 방금 넣은 활동 바로 아래, 아니면 커서가 있는 줄 아래
+      const lines = ta.value.split('\n');
+      const block = ed.lastBlock && ed.lastBlock.every((l) => lines.includes(l)) ? ed.lastBlock : null;
+      const after = block ? lines.lastIndexOf(block[block.length - 1]) : (colorTargets(ed)[0] ?? null);
+      ta.value = togglePlace(ta.value, x, after);
+      ed.lastBlock = adding ? [...(block || []), ...cellLines(x.text)] : block;
+    } else {
+      ta.value = x.kind === 'work' ? applyWork(ta.value, x) : toggleActivity(ta.value, x);
+      ed.lastBlock = adding ? cellLines(x.text) : null; // 글자색·장소 버튼이 기준으로 쓸 줄
+    }
     ta.setSelectionRange(ta.value.length, ta.value.length);
     ta.dispatchEvent(new Event('input'));
     hideSuggest();
@@ -1081,7 +1091,7 @@ function showStampNotice() {
       { label: st.mode === 'add' ? '● 활동 더하기' : '○ 활동 더하기', fn: () => { st.mode = 'add'; showStampNotice(); } },
     );
   }
-  const what = x.kind === 'work' ? `출근 「${x.name}」` : `활동 「${x.name}」`;
+  const what = `${{ work: '출근', activity: '활동', place: '장소' }[x.kind]} 「${x.name}」`;
   showNotice(`${what}을(를) 넣을 날짜 칸을 누르세요. 여러 칸 눌러도 돼요.${done}`, acts);
 }
 function stampDay(d) {
@@ -1091,6 +1101,7 @@ function stampDay(d) {
   const old = mo.days[d] || '';
   let next;
   if (x.kind === 'work') next = hasBlock(old, x) ? old : applyWork(old, x);
+  else if (x.kind === 'place') next = hasBlock(old, x) ? old : togglePlace(old, x, null);
   else if (st.mode === 'add') next = hasBlock(old, x) ? old : toggleActivity(old, x);
   else next = replaceActivities(old, x);
   if (next.trim()) mo.days[d] = next; else delete mo.days[d];
@@ -1126,12 +1137,24 @@ function saveCellAsSnippet(day) {
     const names = new Set(state.snippets.map((y) => y.name));
     for (let n = 2; names.has(x.name); n++) x.name = `${base} ${n}`;
     state.snippets.push(x);
-    added.push(`${x.kind === 'work' ? '출근' : '활동'} 「${x.name}」`);
+    added.push(`${{ work: '출근', activity: '활동', place: '장소' }[x.kind]} 「${x.name}」`);
   }
   renderSnipbar();
   if (!added.length) { toast('이미 같은 버튼이 있어요.'); return; }
   markSettingsDirty();
   toast(`${added.join(', ')} 버튼으로 저장했어요. 이름은 「고치기」에서 바꿀 수 있어요.`);
+}
+
+/* ===== 이 날 지우기 ===== */
+function clearDay(d) {
+  const mo = cur();
+  const old = mo.days[d];
+  stopEdit();
+  if (!old || !old.trim()) { toast('이미 빈 칸이에요.'); return; }
+  delete mo.days[d];
+  render();
+  markDirty();
+  toast(`${state.m}월 ${d}일 일정을 지웠어요.`, { label: '되돌리기', fn: () => { mo.days[d] = old; render(); markDirty(); } });
 }
 
 /* ===== 이 달 모두 지우기 ===== */
@@ -1163,6 +1186,7 @@ function renderSnippetRows() {
   const list = (kind) => state.snippets.map((x, i) => (x.kind === kind ? row(x, i) : '')).join('') || '<li class="muted">아직 없어요.</li>';
   $('snippetWork').innerHTML = list('work');
   $('snippetAct').innerHTML = list('activity');
+  $('snippetPlace').innerHTML = list('place');
 }
 
 /* ===== 반 나누기 ===== */
@@ -1185,7 +1209,7 @@ async function saveSettings() {
   s.pending = false;
   updateSaveState();
   try {
-    await api('/settings', { method: 'PUT', body: { tagGroups: state.tagGroups, snippets: state.snippets } });
+    await api('/settings', { method: 'PUT', body: { tagGroups: state.tagGroups, snippets: state.snippets, snippetsVersion: SNIPPETS_VERSION } });
     s.error = false;
     state.lastSaved = new Date();
   } catch (err) {
@@ -1514,7 +1538,16 @@ function afterPrint() {
 async function boot() {
   const [{ data }, settings] = await Promise.all([api('/people'), api('/settings')]);
   if (settings.data.tagGroups) applyTagGroups(settings.data.tagGroups);
-  if (settings.data.snippets) state.snippets = splitSnippets(settings.data.snippets);
+  if (settings.data.snippets) {
+    state.snippets = splitSnippets(settings.data.snippets);
+    // 예전에 저장한 목록에는 새로 생긴 종류(장소)의 처음 값을 한 번 넣어 줌
+    if ((settings.data.snippetsVersion || 1) < SNIPPETS_VERSION) {
+      for (const x of DEFAULT_SNIPPETS) {
+        if (x.kind === 'place' && !state.snippets.some((y) => y.kind === 'place' && y.text === x.text)) state.snippets.push({ ...x });
+      }
+      markSettingsDirty();
+    }
+  }
   renderSnipbar();
   setPeople(data.people, data.updatedAt);
   state.booted = true;
@@ -1667,15 +1700,16 @@ function bind() {
     markSettingsDirty();
     toast(`「${gone.name}」를 지웠어요.`, { label: '되돌리기', fn: () => { state.snippets = before; renderSnippetRows(); renderSnipbar(); markSettingsDirty(); } });
   };
-  ['snippetWork', 'snippetAct'].forEach((id) => { $(id).addEventListener('input', onSnipInput); $(id).addEventListener('click', onSnipDel); });
+  ['snippetWork', 'snippetAct', 'snippetPlace'].forEach((id) => { $(id).addEventListener('input', onSnipInput); $(id).addEventListener('click', onSnipDel); });
   $('clearMonth').addEventListener('click', clearMonth);
   const addSnip = (kind) => {
-    state.snippets.push({ kind, name: '', text: kind === 'work' ? '출근()' : '' });
+    state.snippets.push({ kind, name: '', text: { work: '출근()', place: '→' }[kind] || '' });
     renderSnippetRows();
     $(`s-name-${state.snippets.length - 1}`).focus();
   };
   $('addWork').addEventListener('click', () => addSnip('work'));
   $('addActivity').addEventListener('click', () => addSnip('activity'));
+  $('addPlace').addEventListener('click', () => addSnip('place'));
   $('findText').addEventListener('input', updateReplace);
   $('doReplace').addEventListener('click', doReplace);
   const sg = $('suggest');
@@ -1760,6 +1794,7 @@ function bind() {
     if (!b) return;
     if (b.dataset.act === 'weekday') fillSameWeekday(+tools.dataset.day);
     else if (b.dataset.act === 'snippet') saveCellAsSnippet(+tools.dataset.day);
+    else if (b.dataset.act === 'clear') clearDay(+tools.dataset.day);
     else beginPick(b.dataset.act, +tools.dataset.day);
   });
 

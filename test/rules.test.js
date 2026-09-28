@@ -230,3 +230,12 @@ test('색을 바꾼 활동도 같은 활동으로 봄', () => {
   assert.ok(R.hasBlock(t, movie));
   assert.strictEqual(R.toggleActivity(t, movie), '출근(9시~12시)');
 });
+
+test('장소: 활동 바로 아래에 넣고, 다시 누르면 뺌', () => {
+  const hall = { kind: 'place', text: '→3층 강당' };
+  const t = '출근(9시~12시)\n*노래+댄스\n*글쓰기';
+  assert.strictEqual(R.togglePlace(t, hall, 1), '출근(9시~12시)\n*노래+댄스\n→3층 강당\n*글쓰기');
+  assert.strictEqual(R.togglePlace(t, hall, null), '출근(9시~12시)\n*노래+댄스\n*글쓰기\n→3층 강당');
+  assert.strictEqual(R.togglePlace('출근(9시~12시)\n*노래+댄스\n→3층 강당', hall, 1), '출근(9시~12시)\n*노래+댄스');
+  assert.strictEqual(R.togglePlace('', hall, null), '→3층 강당');
+});

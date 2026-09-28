@@ -99,23 +99,21 @@
 </section>
 
 <div id="snipbar" class="snipbar ui">
-  <span class="snip-label">출근</span>
-  <div id="snipWork" class="snipchips work"></div>
-  <span class="snip-sep" aria-hidden="true"></span>
-  <span class="snip-label">활동</span>
-  <div id="snipAct" class="snipchips"></div>
-  <span class="snip-sep" aria-hidden="true"></span>
-  <span class="snip-label">글자색</span>
-  <div id="snipColor" class="snipchips colors">
-    <button type="button" class="snip color c-black" data-color="black">검정</button>
-    <button type="button" class="snip color c-blue" data-color="blue">파랑</button>
-    <button type="button" class="snip color c-red" data-color="red">빨강</button>
+  <div class="sgroup"><span class="snip-label">출근</span><div id="snipWork" class="snipchips"></div></div>
+  <div class="sgroup"><span class="snip-label">활동</span><div id="snipAct" class="snipchips"></div></div>
+  <div class="sgroup"><span class="snip-label">장소</span><div id="snipPlace" class="snipchips"></div></div>
+  <div class="sgroup"><span class="snip-label">글자색</span>
+    <div id="snipColor" class="snipchips">
+      <button type="button" class="snip color c-black" data-color="black">검정</button>
+      <button type="button" class="snip color c-blue" data-color="blue">파랑</button>
+      <button type="button" class="snip color c-red" data-color="red">빨강</button>
+    </div>
   </div>
   <div class="snip-tools">
     <button type="button" id="snipEdit" class="linkbtn">버튼 고치기</button>
     <button type="button" id="clearMonth" class="linkbtn danger">이 달 모두 지우기</button>
   </div>
-  <p class="snip-help small muted">날짜 칸을 누르고 → 출근 → 활동 (→ 색을 바꿀 때만 글자색). 칸을 누르지 않고 버튼부터 누르면 여러 날짜에 한꺼번에 넣어요.</p>
+  <p class="snip-help small muted">날짜 칸을 누르고 → 출근 → 활동 → 장소 (→ 색을 바꿀 때만 글자색). 칸을 누르지 않고 버튼부터 누르면 여러 날짜에 한꺼번에 넣어요.</p>
 </div>
 
 <main class="desk">
@@ -178,7 +176,7 @@
 
   <div data-panel="snippets" hidden>
     <div class="pv-titlerow"><h1>자주 쓰는 일정</h1></div>
-    <p class="pv-help">달력 위 버튼으로 나오는 일정이에요. <b>출근</b>은 칸 맨 위 한 줄(하나만), <b>활동</b>은 그 아래에 여러 개 넣을 수 있어요.
+    <p class="pv-help">달력 위 버튼으로 나오는 일정이에요. <b>출근</b>은 칸 맨 위 한 줄(하나만), <b>활동</b>은 그 아래에 여러 개, <b>장소</b>는 활동 바로 아래 줄에 들어가요.
       달력에서 칸을 고칠 때 <b>「자주 쓰는 일정으로 저장」</b>을 눌러 만들 수도 있어요.</p>
     <h2>출근</h2>
     <ul id="snippetWork" class="sniprows"></ul>
@@ -186,6 +184,10 @@
     <h2>활동</h2>
     <ul id="snippetAct" class="sniprows"></ul>
     <div class="pv-row"><button type="button" id="addActivity" class="btn">+ 활동 더하기</button></div>
+    <h2>장소</h2>
+    <p class="pv-help">활동 바로 아래 줄에 들어가요. 보통 <b>→</b>로 시작해요. 예) →3층 강당</p>
+    <ul id="snippetPlace" class="sniprows"></ul>
+    <div class="pv-row"><button type="button" id="addPlace" class="btn">+ 장소 더하기</button></div>
   </div>
 
   <div data-panel="holidays" hidden>
@@ -216,6 +218,7 @@
   <button type="button" data-act="move">다른 날로 옮기기</button>
   <button type="button" data-act="swap">다른 날과 바꾸기</button>
   <button type="button" data-act="weekday">같은 요일에 모두</button>
+  <button type="button" data-act="clear" class="danger">이 날 지우기</button>
   <button type="button" data-act="snippet">자주 쓰는 일정으로 저장</button>
 </div>
 
