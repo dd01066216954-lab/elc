@@ -245,7 +245,13 @@ button:focus-visible, select:focus-visible, [contenteditable]:focus-visible { ou
 }
 .snip-label { font-size: 12.5px; color: var(--ui-muted); font-weight: 500; }
 .snipchips { display: flex; flex-wrap: wrap; gap: 6px; }
-.snipchips:not(.work) { flex: 1; }
+.snipchips:not(.work):not(.colors) { flex: 1; }
+.snip.color { font-weight: 700; padding: 4px 10px; }
+.snip.c-black { color: var(--ui-text); }
+.snip.c-blue { color: #1747b5; }
+.snip.c-red { color: #d1242f; }
+.snip.color.in { background: var(--accent-soft); border-color: currentColor; }
+.snip.color.in::before { content: "✓ "; }
 .snip-sep { width: 1px; align-self: stretch; background: var(--bar-line); margin: 0 2px; }
 .snip-tools { display: flex; gap: 14px; margin-left: auto; }
 .linkbtn.danger { color: #b3261e; }

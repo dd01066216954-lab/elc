@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, recolorLine, lineColorName, cellLines, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -561,11 +561,13 @@ function startEdit(box, day) {
     renderSnipbar();
   });
   ta.addEventListener('keydown', (e) => {
+    if (!['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(e.key)) state.editing.lastBlock = null;
     if (e.isComposing) return;
     if (suggestKey(e)) return;
     if (e.key === 'Escape') { e.preventDefault(); ta.blur(); }
   });
-  ta.addEventListener('click', updateSuggest);
+  ta.addEventListener('click', () => { state.editing.lastBlock = null; updateSuggest(); renderSnipbar(); });
+  ta.addEventListener('keyup', (e) => { if (e.key.startsWith('Arrow')) renderSnipbar(); });
   ta.addEventListener('blur', () => stopEdit());
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -1009,6 +1011,36 @@ function renderSnipbar() {
   $('snipWork').innerHTML = list('work') || '<span class="muted small">없음</span>';
   $('snipAct').innerHTML = list('activity') || '<span class="muted small">없음</span>';
   $('snipbar').classList.toggle('editing', !!ed);
+  let on = '';
+  if (ed) {
+    const lines = ed.ta.value.split('\n');
+    const colors = [...new Set(colorTargets(ed).map((i) => lineColorName(lines[i])))];
+    if (colors.length === 1) on = colors[0];
+  }
+  document.querySelectorAll('#snipColor [data-color]').forEach((b) => b.classList.toggle('in', b.dataset.color === on));
+}
+
+/* ===== 글자색: 방금 넣은 활동, 아니면 커서가 있는 줄 ===== */
+function colorTargets(ed) {
+  const ta = ed.ta;
+  const lines = ta.value.split('\n');
+  if (ed.lastBlock && ed.lastBlock.every((l) => lines.includes(l))) return ed.lastBlock.map((l) => lines.lastIndexOf(l));
+  const i = ta.value.slice(0, ta.selectionStart).split('\n').length - 1;
+  return lines[i] && lines[i].trim() ? [i] : [];
+}
+function applyColor(color) {
+  const ed = state.editing;
+  if (!ed || !ed.day) { toast('먼저 날짜 칸을 누르세요. 방금 넣은 활동이나 커서가 있는 줄의 색을 바꿔요.'); return; }
+  const ta = ed.ta;
+  const lines = ta.value.split('\n');
+  const idx = colorTargets(ed);
+  if (!idx.length) { toast('색을 바꿀 줄에 커서를 두세요.'); return; }
+  idx.forEach((i) => { lines[i] = recolorLine(lines[i], color); });
+  if (ed.lastBlock) ed.lastBlock = idx.map((i) => lines[i]);
+  const caret = ta.selectionStart;
+  ta.value = lines.join('\n');
+  ta.setSelectionRange(Math.min(caret, ta.value.length), Math.min(caret, ta.value.length));
+  ta.dispatchEvent(new Event('input'));
 }
 function snipClick(i) {
   const x = state.snippets[i];
@@ -1017,7 +1049,9 @@ function snipClick(i) {
   if (ed && ed.day) {
     // 고치는 중인 칸: 출근은 바꾸기(같은 것 다시 누르면 빼기), 활동은 넣기/빼기
     const ta = ed.ta;
+    const adding = !hasBlock(ta.value, x);
     ta.value = x.kind === 'work' ? applyWork(ta.value, x) : toggleActivity(ta.value, x);
+    ed.lastBlock = adding ? cellLines(x.text) : null; // 글자색 버튼이 바꿀 줄
     ta.setSelectionRange(ta.value.length, ta.value.length);
     ta.dispatchEvent(new Event('input'));
     hideSuggest();
@@ -1612,6 +1646,8 @@ function bind() {
   snip.addEventListener('click', (e) => {
     const b = e.target.closest('[data-snip]');
     if (b) snipClick(+b.dataset.snip);
+    const c = e.target.closest('[data-color]');
+    if (c) applyColor(c.dataset.color);
     if (e.target.closest('#snipEdit')) { setView('people'); setTab('snippets'); }
   });
   const onSnipInput = (e) => {

@@ -46,13 +46,15 @@ function applyWork(text, snip) {
   const work = lines.filter(isWorkLine);
   const rest = lines.filter((l) => !isWorkLine(l));
   const add = snipLines(snip);
-  const same = work.length === add.length && add.every((l) => work.includes(l));
+  const same = work.length === add.length && add.every((l) => work.some((x) => sameLine(x, l)));
   return (same ? rest : [...add, ...rest]).join('\n');
 }
-const hasBlock = (text, snip) => { const lines = cellLines(text); const add = snipLines(snip); return add.length > 0 && add.every((l) => lines.includes(l)); };
+// 글자색 표시(! * →)는 빼고 비교 — 색만 바꾼 활동도 같은 활동으로 봄
+const sameLine = (a, b) => recolorLine(a, 'black').trim() === recolorLine(b, 'black').trim();
+const hasBlock = (text, snip) => { const lines = cellLines(text); const add = snipLines(snip); return add.length > 0 && add.every((l) => lines.some((x) => sameLine(x, l))); };
 function removeBlock(text, snip) {
   const lines = cellLines(text);
-  for (const l of snipLines(snip)) { const i = lines.indexOf(l); if (i >= 0) lines.splice(i, 1); }
+  for (const l of snipLines(snip)) { const i = lines.findIndex((x) => sameLine(x, l)); if (i >= 0) lines.splice(i, 1); }
   return lines.join('\n');
 }
 // 활동 넣기/빼기 (이미 있으면 뺌)
@@ -64,6 +66,19 @@ function toggleActivity(text, snip) {
 function replaceActivities(text, snip) {
   return [...cellLines(text).filter(isWorkLine), ...snipLines(snip)].join('\n');
 }
+// 한 줄의 글자색 바꾸기 (꼬리표는 그대로)
+//   빨강: 맨 앞에 '!'   파랑: '*'나 '→'로 시작(없으면 '*' 붙임)   검정: 앞의 ! * → 떼기
+function recolorLine(line, color) {
+  const p = parseLine(line);
+  let body = p.rest.trimStart();
+  if (body.startsWith('!')) body = body.slice(1).trimStart();
+  if (color === 'black') body = body.replace(/^[*→]\s*/, '');
+  if (color === 'blue' && !/^[*→]/.test(body)) body = '*' + body;
+  if (color === 'red') body = '!' + body;
+  return p.head + body;
+}
+const lineColorName = (line) => parseLine(line).color || 'black';
+
 // 예전(종류 없는) 자주 쓰는 일정을 출근/활동으로 나눔
 function splitSnippets(list) {
   const out = [];
@@ -361,7 +376,7 @@ function normalizeMonth(data, m) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
+    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, recolorLine, lineColorName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
     parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches,
   };
 }

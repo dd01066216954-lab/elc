@@ -211,3 +211,22 @@ test('예전 자주 쓰는 일정 나누기', () => {
   ]);
   assert.strictEqual(out[0].name, '9시~12시');
 });
+
+test('글자색 바꾸기', () => {
+  assert.strictEqual(R.recolorLine('*영화 감상', 'red'), '!*영화 감상');
+  assert.strictEqual(R.recolorLine('!*영화 감상', 'blue'), '*영화 감상');
+  assert.strictEqual(R.recolorLine('영화 감상', 'blue'), '*영화 감상');
+  assert.strictEqual(R.recolorLine('→감상문 쓰기', 'blue'), '→감상문 쓰기');
+  assert.strictEqual(R.recolorLine('*영화 감상', 'black'), '영화 감상');
+  assert.strictEqual(R.recolorLine('[탁구] *체육', 'red'), '[탁구] !*체육');
+  assert.strictEqual(R.recolorLine('[탁구] !*체육', 'black'), '[탁구] 체육');
+  assert.strictEqual(R.lineColorName('[탁구] !*체육'), 'red');
+  assert.strictEqual(R.lineColorName('출근'), 'black');
+});
+
+test('색을 바꾼 활동도 같은 활동으로 봄', () => {
+  const movie = { kind: 'activity', text: '*영화 감상\n→감상문 쓰기' };
+  const t = '출근(9시~12시)\n!*영화 감상\n!→감상문 쓰기';
+  assert.ok(R.hasBlock(t, movie));
+  assert.strictEqual(R.toggleActivity(t, movie), '출근(9시~12시)');
+});
