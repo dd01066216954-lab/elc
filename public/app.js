@@ -1,6 +1,6 @@
 'use strict';
 /* global TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
-   splitTags, usedTags, makeMonth, normalizeMonth */
+   textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴)
 const TAG_COLORS = {
@@ -133,6 +133,9 @@ function sheetHTML(ym, mo, mode, person) {
     }
     const hn = holidayName(y, m, d);
     cls.push('in');
+    // 토·일요일에 (그 사람에게) 들어갈 일정이 없으면 빗금
+    const shown = mode === 'person' ? textFor(mo.days[d], person) : (mo.days[d] || '');
+    if ((w === 0 || w === 6) && !shown.trim()) cls.push('hatch');
     if (hn) cls.push('holiday');
     if (edit) cls.push('editable');
     html += `<div class="${cls.join(' ')}" data-day="${d}">
@@ -466,6 +469,9 @@ function startEdit(box, day) {
       mo.notes = ta.value;
     }
     box.querySelector('.lines').innerHTML = linesHTML(ta.value, 'edit');
+    if (day && (host.classList.contains('c-sun') || host.classList.contains('c-sat'))) {
+      host.classList.toggle('hatch', !ta.value.trim());
+    }
     fit(box);
     markDirty();
   });

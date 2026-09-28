@@ -255,6 +255,11 @@ button:focus-visible, select:focus-visible, [contenteditable]:focus-visible { ou
 .c-sat:not(.holiday) .dnum { color: var(--sat); }
 .hname { color: var(--red); font-weight: 700; font-size: 11px; }
 .cell-body { position: relative; flex: 1; min-height: 0; overflow: hidden; margin-top: .6mm; }
+/* 토·일요일 빈 칸 빗금 (인쇄에도 나옴) */
+.cell.hatch .cell-body {
+  background: repeating-linear-gradient(45deg, transparent 0 2.2mm, #9aa1ac 2.2mm 2.45mm);
+}
+.cell.hatch.editing .cell-body { background: none; }
 
 /* 여러 줄 텍스트 (칸·안내문 공통) */
 .lines { white-space: pre-wrap; }
