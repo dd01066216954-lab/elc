@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -41,6 +41,8 @@ const state = {
   pendingImport: null,
   groupRows: [],        // 반 나누기 입력칸 [{ name, tags(글자) }]
   pickerYear: 0,
+  snippets: DEFAULT_SNIPPETS.map((x) => ({ ...x })), // 자주 쓰는 일정
+  stamp: null,          // { i, mode:'replace'|'append', before, days[] }
   loadToken: 0,
   lastSaved: null,
 };
@@ -228,6 +230,7 @@ function fitZoom() {
   const paperPx = 297 * 96 / 25.4;
   const avail = document.documentElement.clientWidth - 32;
   $('sheetWrap').style.zoom = Math.max(0.3, Math.min(1.3, avail / paperPx));
+  document.documentElement.style.setProperty('--bar-h', document.querySelector('.bar').offsetHeight + 'px');
   positionTools();
 }
 
@@ -314,6 +317,7 @@ async function openMonth(y, m) {
   const token = ++state.loadToken;
   stopEdit();
   cancelPick();
+  if (state.stamp) endStamp();
   state.y = y;
   state.m = m;
   try { localStorage.setItem('lastMonth', ymKey(y, m)); } catch (e) { /* 무시 */ }
@@ -988,6 +992,97 @@ function renderPicker() {
     <div class="mp-foot"><span class="mp-legend"><i></i> 만들어 둔 달</span><button type="button" class="btn" data-thismonth>이번 달로</button></div>`;
 }
 
+
+/* ===== 자주 쓰는 일정 ===== */
+function renderSnipbar() {
+  const bar = $('snipChips');
+  bar.innerHTML = state.snippets.map((x, i) =>
+    `<button type="button" class="snip${state.stamp && state.stamp.i === i ? ' on' : ''}" data-snip="${i}" title="${esc(x.text)}">${esc(x.name || '(이름 없음)')}</button>`).join('');
+}
+function snipClick(i) {
+  const x = state.snippets[i];
+  if (!x) return;
+  const ed = state.editing;
+  if (ed && ed.day) {
+    // 고치는 중인 칸에 넣기: 비었으면 채우고, 내용이 있으면 아래에 덧붙임
+    const ta = ed.ta;
+    ta.value = ta.value.trim() ? ta.value.replace(/\n*$/, '') + '\n' + x.text : x.text;
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    ta.dispatchEvent(new Event('input'));
+    hideSuggest();
+    return;
+  }
+  if (state.stamp && state.stamp.i === i) { endStamp(); return; }
+  beginStamp(i);
+}
+function beginStamp(i) {
+  stopEdit();
+  cancelPick();
+  if (state.stamp) endStamp();
+  if (previewPerson()) setPreview('');
+  state.stamp = { i, mode: 'replace', before: { ...cur().days }, days: [] };
+  $('sheet').classList.add('picking');
+  renderSnipbar();
+  showStampNotice();
+}
+function showStampNotice() {
+  const st = state.stamp;
+  const x = state.snippets[st.i];
+  showNotice(`「${x.name}」를 넣을 날짜 칸을 누르세요. 여러 칸 눌러도 돼요.${st.days.length ? ` (${st.days.length}칸 넣음)` : ''}`, [
+    { label: st.mode === 'replace' ? '● 칸 내용 바꾸기' : '○ 칸 내용 바꾸기', fn: () => { st.mode = 'replace'; showStampNotice(); } },
+    { label: st.mode === 'append' ? '● 아래에 덧붙이기' : '○ 아래에 덧붙이기', fn: () => { st.mode = 'append'; showStampNotice(); } },
+    { label: '끝내기', fn: endStamp },
+  ]);
+}
+function stampDay(d) {
+  const st = state.stamp;
+  const x = state.snippets[st.i];
+  const mo = cur();
+  const old = mo.days[d] || '';
+  const next = st.mode === 'append' && old.trim() ? old.replace(/\n*$/, '') + '\n' + x.text : x.text;
+  if (next.trim()) mo.days[d] = next; else delete mo.days[d];
+  if (!st.days.includes(d)) st.days.push(d);
+  render();
+  markDirty();
+  const c = document.querySelector(`#sheet .cell[data-day="${d}"]`);
+  if (c) c.classList.add('flash');
+  showStampNotice();
+}
+function endStamp() {
+  const st = state.stamp;
+  if (!st) return;
+  state.stamp = null;
+  $('sheet').classList.remove('picking');
+  renderSnipbar();
+  hideNotice();
+  if (st.days.length) {
+    const mo = cur();
+    const x = state.snippets[st.i] || { name: '' };
+    toast(`${st.days.length}칸에 「${x.name}」를 넣었어요.`, { label: '되돌리기', fn: () => { mo.days = st.before; render(); markDirty(); } });
+  }
+}
+function saveCellAsSnippet(day) {
+  const text = (cur().days[day] || '').trim();
+  stopEdit();
+  if (!text) { toast('빈 칸은 저장할 수 없어요.'); return; }
+  let name = guessSnippetName(text);
+  const names = new Set(state.snippets.map((x) => x.name));
+  for (let n = 2; names.has(name); n++) name = `${guessSnippetName(text)} ${n}`;
+  state.snippets.push({ name, text });
+  renderSnipbar();
+  markSettingsDirty();
+  toast(`「${name}」 버튼으로 저장했어요. 이름은 참여자·설정 → 자주 쓰는 일정에서 바꿀 수 있어요.`);
+}
+
+// 설정 탭
+function renderSnippetRows() {
+  $('snippetRows').innerHTML = state.snippets.map((x, i) => `<li class="sniprow">
+      <input id="s-name-${i}" data-s="${i}" data-c="name" value="${esc(x.name)}" placeholder="버튼 이름" aria-label="${i + 1}번 이름" autocomplete="off">
+      <textarea id="s-text-${i}" data-s="${i}" data-c="text" rows="${Math.min(6, Math.max(2, x.text.split('\n').length))}" aria-label="${i + 1}번 내용" spellcheck="false">${esc(x.text)}</textarea>
+      <button type="button" class="iconbtn small" data-sdel="${i}" aria-label="${i + 1}번 지우기">✕</button>
+    </li>`).join('') || '<li class="muted">아직 없어요.</li>';
+}
+
 /* ===== 반 나누기 ===== */
 function applyTagGroups(groups) {
   state.tagGroups = groups;
@@ -1008,7 +1103,7 @@ async function saveSettings() {
   s.pending = false;
   updateSaveState();
   try {
-    await api('/settings', { method: 'PUT', body: { tagGroups: state.tagGroups } });
+    await api('/settings', { method: 'PUT', body: { tagGroups: state.tagGroups, snippets: state.snippets } });
     s.error = false;
     state.lastSaved = new Date();
   } catch (err) {
@@ -1158,12 +1253,14 @@ function setTab(tab) {
     renderGroups();
   }
   if (tab === 'holidays') loadCustomHolidays();
+  if (tab === 'snippets') renderSnippetRows();
 }
 
 /* ===== 화면 전환 ===== */
 function setView(view) {
   stopEdit();
   cancelPick();
+  if (state.stamp) endStamp();
   state.view = view;
   document.body.dataset.view = view;
   $('loginView').hidden = view !== 'login';
@@ -1335,6 +1432,8 @@ function afterPrint() {
 async function boot() {
   const [{ data }, settings] = await Promise.all([api('/people'), api('/settings')]);
   if (settings.data.tagGroups) applyTagGroups(settings.data.tagGroups);
+  if (settings.data.snippets) state.snippets = settings.data.snippets;
+  renderSnipbar();
   setPeople(data.people, data.updatedAt);
   state.booted = true;
   let y = state.y, m = state.m;
@@ -1460,6 +1559,36 @@ function bind() {
   });
   $('hoursBtn').addEventListener('click', openHours);
   $('replaceBtn').addEventListener('click', openReplace);
+  const snip = $('snipbar');
+  snip.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); }); // 고치던 칸 포커스 유지
+  snip.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-snip]');
+    if (b) snipClick(+b.dataset.snip);
+    if (e.target.closest('#snipEdit')) { setView('people'); setTab('snippets'); }
+  });
+  const sRows = $('snippetRows');
+  sRows.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el.dataset.s) return;
+    state.snippets[+el.dataset.s][el.dataset.c] = el.value;
+    renderSnipbar();
+    markSettingsDirty();
+  });
+  sRows.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sdel]');
+    if (!b) return;
+    const before = state.snippets.map((x) => ({ ...x }));
+    const gone = state.snippets.splice(+b.dataset.sdel, 1)[0];
+    renderSnippetRows();
+    renderSnipbar();
+    markSettingsDirty();
+    toast(`「${gone.name}」를 지웠어요.`, { label: '되돌리기', fn: () => { state.snippets = before; renderSnippetRows(); renderSnipbar(); markSettingsDirty(); } });
+  });
+  $('addSnippet').addEventListener('click', () => {
+    state.snippets.push({ name: '', text: '' });
+    renderSnippetRows();
+    $(`s-name-${state.snippets.length - 1}`).focus();
+  });
   $('findText').addEventListener('input', updateReplace);
   $('doReplace').addEventListener('click', doReplace);
   const sg = $('suggest');
@@ -1508,6 +1637,10 @@ function bind() {
   sheet.addEventListener('click', (e) => {
     if (previewPerson()) return;
     const cell = e.target.closest('.cell.in');
+    if (state.stamp) {
+      if (cell) stampDay(+cell.dataset.day);
+      return;
+    }
     if (state.pick) {
       if (cell) finishPick(+cell.dataset.day);
       return;
@@ -1539,6 +1672,7 @@ function bind() {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     if (b.dataset.act === 'weekday') fillSameWeekday(+tools.dataset.day);
+    else if (b.dataset.act === 'snippet') saveCellAsSnippet(+tools.dataset.day);
     else beginPick(b.dataset.act, +tools.dataset.day);
   });
 
@@ -1625,6 +1759,7 @@ function bind() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && state.pick) cancelPick();
+    if (e.key === 'Escape' && state.stamp) endStamp();
     if (e.key === 'Escape') { PANELS.forEach((pid) => { $(pid).hidden = true; }); $('monthPicker').hidden = true; markMatches(''); }
   });
 
@@ -1650,6 +1785,7 @@ function bind() {
 }
 
 bind();
+renderSnipbar();
 fitZoom();
 updateSaveState();
 start();

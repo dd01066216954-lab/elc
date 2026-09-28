@@ -174,3 +174,10 @@ test('찾아 바꾸기 개수', () => {
   assert.deepStrictEqual(R.countMatches(['강사A 강사A', '강사B', '강사A'], '강사A'), { cells: 2, hits: 3 });
   assert.deepStrictEqual(R.countMatches(['x'], ''), { cells: 0, hits: 0 });
 });
+
+test('자주 쓰는 일정 이름 짐작', () => {
+  assert.strictEqual(R.guessSnippetName('출근(9시~12시)\n*영화 감상\n→감상문 쓰기'), '영화 감상');
+  assert.strictEqual(R.guessSnippetName('출근(9시~12시)\n[탁구] *체육(탁구)'), '체육');
+  assert.strictEqual(R.guessSnippetName('!우천 시 실내로'), '우천 시 실내로');
+  assert.strictEqual(R.guessSnippetName(''), '새 일정');
+});

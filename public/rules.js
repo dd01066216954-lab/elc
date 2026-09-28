@@ -22,6 +22,24 @@ function setTagGroups(groups) {
     .filter((tags) => tags.length);
 }
 
+// 자주 쓰는 일정 (처음 값 — 화면의 「자주 쓰는 일정」 탭에서 바꿈)
+const DEFAULT_SNIPPETS = [
+  { name: '영화', text: '출근(9시~12시)\n*영화 감상\n→감상문 쓰기' },
+  { name: '노래+댄스', text: '출근(9시~12시)\n*노래+댄스' },
+  { name: '글쓰기', text: '출근(9시~12시)\n*글쓰기' },
+  { name: '체육', text: '출근(9시~12시)\n[탁구] *체육(탁구)\n[탁구] →장애인체육회강사\n[배드민턴] *체육(배드민턴)\n[배드민턴] →장애인형국민체육센터' },
+  { name: '자립아카데미', text: '출근(9시~11시)\n*자립아카데미\n[남] *남자: 4층 프로그램실(의사소통기술)\n[여] *여자: 3층 프로그램실(이미지메이킹)' },
+  { name: '우천 안내', text: '!우천 시 실내 체육관으로 모임' },
+];
+
+// 칸 내용으로 버튼 이름 짐작: '*영화 감상' → '영화 감상'
+function guessSnippetName(text) {
+  const lines = String(text || '').split('\n').map(parseLine).filter((p) => printedText(p).trim());
+  const pick = lines.find((p) => p.color && !/출근|근무/.test(p.rest)) || lines[0];
+  if (!pick) return '새 일정';
+  return printedText(pick).replace(/^[*→]\s*/, '').replace(/\s*\(.*$/, '').trim().slice(0, 12) || '새 일정';
+}
+
 const DEFAULT_MONTH = {
   guide: '*9시~9시30분: 명상 *9시30분~11시30분: 본 수업 *11시30분~11시50분: 마무리(일지작성)',
   headers: ['일', '월', '화', '수', '목', '금', '토'],
@@ -295,7 +313,7 @@ function normalizeMonth(data, m) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    DEFAULT_TAG_GROUPS, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
+    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
     parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches,
   };
 }

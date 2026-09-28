@@ -44,6 +44,7 @@
     people: { list: people, updatedAt: 1 },
     custom: [],
     tagGroups: null,
+    snippets: null,
     versions: {},
   };
 
@@ -68,8 +69,9 @@
       return reply({ ok: true, ...db.months[m[1]] });
     }
     if (path === '/settings') {
-      if (method === 'GET') return reply({ tagGroups: db.tagGroups });
-      db.tagGroups = body.tagGroups;
+      if (method === 'GET') return reply({ tagGroups: db.tagGroups, snippets: db.snippets });
+      if (body.tagGroups) db.tagGroups = body.tagGroups;
+      if (body.snippets) db.snippets = body.snippets;
       return reply({ ok: true });
     }
     if ((m = path.match(/^\/months\/(\d{4}-\d{2})$/))) {
