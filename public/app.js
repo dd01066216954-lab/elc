@@ -192,7 +192,7 @@ function updateHoursChip() {
   if (!mo || !people.length) { btn.textContent = '근무시간'; return; }
   const sums = people.map((p) => workSummary(mo, p).hours);
   const min = Math.min(...sums), max = Math.max(...sums);
-  btn.textContent = `근무시간 · ${min === max ? formatHours(max) : `${formatHours(min).replace('시간', '')}~${formatHours(max)}`}`;
+  btn.textContent = `근무 ${min === max ? formatHours(max) : `${formatHours(min).replace('시간', '')}~${formatHours(max)}`}`;
   btn.title = '사람마다 받는 줄이 달라 시간이 다를 수 있어요. 눌러서 사람별로 보기';
   if (!$('hoursPanel').hidden) renderHours();
 }
