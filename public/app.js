@@ -30,7 +30,6 @@ const state = {
   peopleRows: [],        // 참여자 표 입력칸 [{ name, tags(글자) }]
   peopleSync: { updatedAt: null, pending: false, saving: false, again: false, error: false, timer: 0 },
   preview: '',           // 미리보기 대상 번호 ('' = 고치기)
-  pick: null,            // { mode:'move'|'swap', from:d }
   editing: null,
   conflict: null,        // { kind:'month'|'people', ym?, server }
   noticeShown: {},
@@ -204,7 +203,7 @@ function render() {
   const person = previewPerson();
   const sheet = $('sheet');
   sheet.innerHTML = sheetHTML(curKey(), mo, person ? 'person' : 'edit', person);
-  sheet.classList.toggle('picking', !!state.pick);
+  sheet.classList.toggle('picking', !!state.stamp);
   fitAll(sheet);
   renderBanner();
   updateHoursChip();
@@ -316,7 +315,6 @@ function applyHolidays(ym) {
 async function openMonth(y, m) {
   const token = ++state.loadToken;
   stopEdit();
-  cancelPick();
   if (state.stamp) endStamp();
   state.y = y;
   state.m = m;
@@ -511,7 +509,7 @@ function resolveConflict(keepMine) {
 
 // 다른 사람이 고친 내용 가져오기 (내가 고치는 중이 아닐 때만)
 async function poll() {
-  if (document.hidden || state.view !== 'calendar' || state.editing || state.pick || state.conflict) return;
+  if (document.hidden || state.view !== 'calendar' || state.editing || state.stamp || state.conflict) return;
   if (document.activeElement && document.activeElement.isContentEditable) return;
   const ym = curKey();
   const e = state.months[ym];
@@ -775,44 +773,6 @@ function positionTools() {
 }
 function hideTools() { $('cellTools').hidden = true; }
 
-function beginPick(mode, from) {
-  stopEdit();
-  state.pick = { mode, from };
-  $('sheet').classList.add('picking');
-  const c = document.querySelector(`#sheet .cell[data-day="${from}"]`);
-  if (c) c.classList.add('picked');
-  const verb = mode === 'move' ? '옮길' : '바꿀';
-  showNotice(`${state.m}월 ${from}일 내용을 ${verb} 날짜 칸을 누르세요.`, [{ label: '취소', fn: cancelPick }]);
-}
-function cancelPick() {
-  if (!state.pick) return;
-  state.pick = null;
-  $('sheet').classList.remove('picking');
-  document.querySelectorAll('#sheet .cell.picked').forEach((c) => c.classList.remove('picked'));
-  hideNotice();
-}
-function finishPick(to) {
-  const { mode, from } = state.pick;
-  cancelPick();
-  if (to === from) return;
-  const mo = cur();
-  const before = { ...mo.days };
-  const a = mo.days[from];
-  const b = mo.days[to];
-  if (mode === 'move') {
-    if (a) mo.days[to] = a; else delete mo.days[to];
-    delete mo.days[from];
-  } else {
-    if (b) mo.days[from] = b; else delete mo.days[from];
-    if (a) mo.days[to] = a; else delete mo.days[to];
-  }
-  render();
-  markDirty();
-  document.querySelectorAll(`#sheet .cell[data-day="${to}"], #sheet .cell[data-day="${from}"]`)
-    .forEach((c) => c.classList.add('flash'));
-  const msg = mode === 'move' ? `${from}일 내용을 ${to}일로 옮겼어요.` : `${from}일과 ${to}일 내용을 바꿨어요.`;
-  toast(msg, { label: '되돌리기', fn: () => { mo.days = before; render(); markDirty(); } });
-}
 
 /* ===== 알림 · 토스트 ===== */
 function showNotice(text, actions) {
@@ -867,7 +827,6 @@ function toast(text, action) {
 
 function setPreview(value) {
   stopEdit();
-  cancelPick();
   state.preview = value;
   $('previewSelect').value = value;
   const n = $('notice');
@@ -1034,7 +993,6 @@ function snipClick(i) {
 }
 function beginStamp(i) {
   stopEdit();
-  cancelPick();
   if (state.stamp) endStamp();
   if (previewPerson()) setPreview('');
   state.stamp = { i, before: { ...cur().days }, days: [] };
@@ -1463,7 +1421,6 @@ function setTab(tab) {
 /* ===== 화면 전환 ===== */
 function setView(view) {
   stopEdit();
-  cancelPick();
   if (state.stamp) endStamp();
   state.view = view;
   document.body.dataset.view = view;
@@ -1855,10 +1812,6 @@ function bind() {
       if (cell) stampDay(+cell.dataset.day);
       return;
     }
-    if (state.pick) {
-      if (cell) finishPick(+cell.dataset.day);
-      return;
-    }
     if (cell) { startEdit(cell.querySelector('.cell-body'), +cell.dataset.day); return; }
     const notes = e.target.closest('.s-notes');
     if (notes) startEdit(notes, 0);
@@ -1888,7 +1841,6 @@ function bind() {
     if (b.dataset.act === 'weekday') fillSameWeekday(+tools.dataset.day);
     else if (b.dataset.act === 'snippet') saveCellAsSnippet(+tools.dataset.day);
     else if (b.dataset.act === 'clear') clearDay(+tools.dataset.day);
-    else beginPick(b.dataset.act, +tools.dataset.day);
   });
 
   // 참여자 표
@@ -1973,7 +1925,6 @@ function bind() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && state.pick) cancelPick();
     if (e.key === 'Escape' && state.stamp) endStamp();
     if (e.key === 'Escape') { PANELS.forEach((pid) => { $(pid).hidden = true; }); $('monthPicker').hidden = true; markMatches(''); }
   });
