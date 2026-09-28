@@ -101,3 +101,25 @@ test('새 달: 지난달이 없으면 더 이전 달에서 복사', () => {
   assert.strictEqual(oct.days[5], '8월 첫째 월'); // 10/5 첫째 월 ← 8/3 첫째 월
   assert.strictEqual(oct.days[12], '8월 둘째 월');
 });
+
+test('새로 공휴일이 된 날은 한 번만 비움', () => {
+  const mo = R.normalizeMonth({ days: { 5: '출근\n*영화', 6: '출근' } }, 10);
+  let r = R.clearHolidayDays(mo, [3, 5, 9]);
+  assert.deepStrictEqual(r.cleared, { 5: '출근\n*영화' });
+  assert.strictEqual(mo.days[5], undefined);
+  assert.strictEqual(mo.days[6], '출근');
+  // 공휴일에 일부러 다시 적은 건 지우지 않음
+  mo.days[5] = '*센터 체육대회';
+  r = R.clearHolidayDays(mo, [3, 5, 9]);
+  assert.strictEqual(r.changed, false);
+  assert.strictEqual(mo.days[5], '*센터 체육대회');
+});
+
+test('새 달: 주말 공휴일도 비우고, 공휴일은 이미 비운 날로 기억', () => {
+  const isH = (y, m, d) => y === 2026 && m === 10 && [3, 5, 9].includes(d);
+  const prev = { title: '9월', guide: '', headers: ['일', '월', '화', '수', '목', '금', '토'], notes: '', days: { 5: '9월 첫째 토' } };
+  const oct = R.makeMonth(2026, 10, prev, isH);
+  assert.strictEqual(oct.days[3], undefined);
+  assert.strictEqual(oct.days[10], '9월 첫째 토');
+  assert.deepStrictEqual(oct.holidaysApplied, ['3', '5', '9']);
+});

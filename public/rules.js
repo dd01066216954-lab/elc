@@ -135,7 +135,9 @@ function makeMonth(y, m, prev, isHoliday, from) {
     headers: prev ? [...prev.headers] : [...DEFAULT_MONTH.headers],
     notes: prev ? prev.notes : DEFAULT_MONTH.notes,
     days: {},
+    holidaysApplied: [], // 공휴일이라 일정을 비운 날 (다시 비우지 않도록 기억)
   };
+  for (let d = 1; d <= daysIn(y, m); d++) if (isHoliday(y, m, d)) month.holidaysApplied.push(String(d));
   if (!prev) return month;
   const renamed = prev.title.replace(/^\s*\d{1,2}월/, `${m}월`);
   if (renamed !== prev.title) month.title = renamed;
@@ -144,15 +146,11 @@ function makeMonth(y, m, prev, isHoliday, from) {
   const [py, pm] = from || shiftMonth(y, m, -1);
   const occ = Array.from({ length: 7 }, () => []);
   for (let d = 1; d <= daysIn(py, pm); d++) occ[weekday(py, pm, d)].push(d);
-  const usable = (d) => {
-    const w = weekday(py, pm, d);
-    if (w !== 0 && w !== 6 && isHoliday(py, pm, d)) return false;
-    return !!(prev.days[d] || '').trim();
-  };
+  const usable = (d) => !isHoliday(py, pm, d) && !!(prev.days[d] || '').trim();
 
   for (let d = 1; d <= daysIn(y, m); d++) {
     const w = weekday(y, m, d);
-    if (w !== 0 && w !== 6 && isHoliday(y, m, d)) continue;
+    if (isHoliday(y, m, d)) continue; // 공휴일은 비움 (주말 공휴일 포함)
     const n = Math.ceil(d / 7) - 1;
     const list = occ[w];
     const order = [];
@@ -162,6 +160,27 @@ function makeMonth(y, m, prev, isHoliday, from) {
     if (src) month.days[d] = prev.days[src];
   }
   return month;
+}
+
+// 새로 공휴일이 된 날의 일정 비우기
+// holidays: 이 달의 공휴일 날짜(일) 목록. 이미 비운 적 있는 날(holidaysApplied)은 건드리지 않는다
+// → 공휴일에 일부러 다시 적은 일정은 그대로 남음
+// 반환: { changed, cleared: { 일: 지운 글자 } }
+function clearHolidayDays(month, holidayDays) {
+  const applied = new Set(month.holidaysApplied || []);
+  const cleared = {};
+  let changed = false;
+  for (const day of holidayDays.map(String)) {
+    if (applied.has(day)) continue;
+    applied.add(day);
+    changed = true;
+    if ((month.days[day] || '').trim()) {
+      cleared[day] = month.days[day];
+      delete month.days[day];
+    }
+  }
+  month.holidaysApplied = [...applied];
+  return { changed, cleared };
 }
 
 // 저장된 데이터 모양 맞추기
@@ -175,12 +194,13 @@ function normalizeMonth(data, m) {
     headers: headers.map(String),
     notes: typeof d.notes === 'string' ? d.notes : '',
     days: d.days && typeof d.days === 'object' ? { ...d.days } : {},
+    holidaysApplied: Array.isArray(d.holidaysApplied) ? d.holidaysApplied.map(String) : [],
   };
 }
 
 if (typeof module !== 'undefined') {
   module.exports = {
     DEFAULT_TAG_GROUPS, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
-    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText,
+    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays,
   };
 }

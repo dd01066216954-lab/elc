@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, clearHolidayDays, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -265,6 +265,25 @@ async function loadSavedMonths() {
   } catch (e) { if (e.status === 401) throw e; }
 }
 
+// 새로 공휴일이 된 날(예: 나중에 넣은 기관 휴무일, 늦게 발표된 대체공휴일)의 일정 비우기
+function applyHolidays(ym) {
+  const e = state.months[ym];
+  if (!e) return;
+  const days = Object.keys(state.holidays).filter((k) => k.startsWith(ym + '-')).map((k) => +k.slice(8));
+  const { changed, cleared } = clearHolidayDays(e.data, days);
+  if (!changed) return;
+  const gone = Object.keys(cleared);
+  // 아직 저장 안 한 새 달이고 지운 것도 없으면 저장할 필요 없음
+  if (e.updatedAt !== null || gone.length) markDirty(ym);
+  if (!gone.length) return;
+  const m = +ym.slice(5);
+  const list = gone.sort((a, b) => a - b).map((d) => `${m}월 ${d}일(${state.holidays[`${ym}-${pad(d)}`]})`).join(', ');
+  showNotice(`공휴일이 된 ${list} 일정을 지웠어요.`, [
+    { label: '확인', fn: hideNotice },
+    { label: '되돌리기', fn: () => { Object.assign(e.data.days, cleared); markDirty(ym); hideNotice(); if (ym === curKey()) render(); } },
+  ]);
+}
+
 async function openMonth(y, m) {
   const token = ++state.loadToken;
   stopEdit();
@@ -302,14 +321,14 @@ async function openMonth(y, m) {
   }
   if (token !== state.loadToken) return;
   document.body.classList.remove('loading');
+  if (!state.conflict) hideNotice();
+  applyHolidays(ym);
   render();
   if (copied && !state.noticeShown[ym]) {
     state.noticeShown[ym] = true;
     const [py, pm] = shiftMonth(y, m, -1);
     const base = copied[0] === py && copied[1] === pm ? '지난달' : `${copied[0] !== y ? copied[0] + '년 ' : ''}${copied[1]}월`;
     showNotice(`${base} 기준으로 채웠어요. 바뀐 날만 고치세요.`, [{ label: '확인', fn: hideNotice }]);
-  } else if (!state.conflict) {
-    hideNotice();
   }
 }
 
@@ -967,7 +986,7 @@ function setView(view) {
   }
   if (view === 'calendar') {
     // 기관 휴무일이 바뀌었을 수 있으니 다시 불러와서 그림
-    loadHolidays(state.y, state.m).then(render, () => {});
+    loadHolidays(state.y, state.m).then(() => { applyHolidays(curKey()); render(); }, () => {});
     render();
   }
   if (view === 'login') {
