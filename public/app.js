@@ -1191,6 +1191,80 @@ function nudgeSnippet(i, dir) {
   moveSnippet(i, same[pos], dir > 0);
 }
 
+/* ===== 터치로 끌기 (태블릿·휴대폰): 길게 누르면 집히고, 놓은 칸으로 ===== */
+let suppressClickUntil = 0; // 끌기 뒤 따라오는 클릭 무시
+function bindTouchDrag() {
+  const LONG_MS = 450;
+  let t = null; // { kind:'day'|'snip', id, el, x0, y0, timer, active, ghost, target }
+  const cleanup = () => {
+    if (!t) return;
+    clearTimeout(t.timer);
+    if (t.ghost) t.ghost.remove();
+    t.el.classList.remove('dragging');
+    clearDropMarks();
+    t = null;
+  };
+  const place = (x, y) => {
+    t.ghost.style.left = x + 'px';
+    t.ghost.style.top = y + 'px';
+    const under = document.elementFromPoint(x, y);
+    const cell = under && under.closest('#sheet .cell.in');
+    document.querySelectorAll('#sheet .cell.dropping').forEach((c) => { if (c !== cell) c.classList.remove('dropping'); });
+    if (cell && !(t.kind === 'day' && +cell.dataset.day === t.id)) cell.classList.add('dropping');
+    t.target = cell && !(t.kind === 'day' && +cell.dataset.day === t.id) ? +cell.dataset.day : null;
+  };
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1 || state.view !== 'calendar' || previewPerson()) { cleanup(); return; }
+    const chip = e.target.closest('#snipbar [data-snip]');
+    const cell = e.target.closest('#sheet .cell.in[draggable="true"]');
+    if (!chip && !cell) return;
+    if (cell && state.editing) return; // 고치는 중엔 글자 선택
+    const touch = e.touches[0];
+    t = { kind: chip ? 'snip' : 'day', id: +(chip ? chip.dataset.snip : cell.dataset.day), el: chip || cell, x0: touch.clientX, y0: touch.clientY, active: false };
+    t.timer = setTimeout(() => {
+      if (!t) return;
+      t.active = true;
+      hideTools();
+      t.el.classList.add('dragging');
+      const label = t.kind === 'snip' ? state.snippets[t.id].name : `${state.m}월 ${t.id}일`;
+      t.ghost = document.createElement('div');
+      t.ghost.className = 'touchghost ui';
+      t.ghost.textContent = label;
+      document.body.appendChild(t.ghost);
+      place(t.x0, t.y0);
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, LONG_MS);
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (!t) return;
+    const touch = e.touches[0];
+    if (!t.active) {
+      // 길게 누르기 전에 움직이면 그냥 스크롤
+      if (Math.hypot(touch.clientX - t.x0, touch.clientY - t.y0) > 10) cleanup();
+      return;
+    }
+    e.preventDefault(); // 끄는 동안 화면이 움직이지 않게
+    place(touch.clientX, touch.clientY);
+  }, { passive: false });
+  document.addEventListener('touchend', (e) => {
+    if (!t) return;
+    if (t.active) {
+      e.preventDefault();
+      suppressClickUntil = Date.now() + 600;
+      const { kind, id, target } = t;
+      cleanup();
+      if (target != null) {
+        stopEdit();
+        if (kind === 'snip') dropSnippet(id, target); else dropDay(id, target, false);
+      }
+      return;
+    }
+    cleanup();
+  }, { passive: false });
+  document.addEventListener('touchcancel', cleanup);
+  document.addEventListener('contextmenu', (e) => { if (t && t.active) e.preventDefault(); });
+}
+
 /* ===== 이 날 지우기 ===== */
 function clearDay(d) {
   const mo = cur();
@@ -1727,7 +1801,7 @@ function bind() {
   snip.addEventListener('mousedown', (e) => { if (state.editing && e.target.closest('button')) e.preventDefault(); }); // 고치던 칸 포커스 유지 (아닐 땐 끌기 가능)
   snip.addEventListener('click', (e) => {
     const b = e.target.closest('[data-snip]');
-    if (b) snipClick(+b.dataset.snip);
+    if (b && Date.now() >= suppressClickUntil) snipClick(+b.dataset.snip);
     if (e.target.closest('#snipEdit')) { setView('people'); setTab('snippets'); }
   });
   const onSnipInput = (e) => {
@@ -1806,7 +1880,7 @@ function bind() {
   // 달력 종이
   const sheet = $('sheet');
   sheet.addEventListener('click', (e) => {
-    if (previewPerson()) return;
+    if (previewPerson() || Date.now() < suppressClickUntil) return;
     const cell = e.target.closest('.cell.in');
     if (state.stamp) {
       if (cell) stampDay(+cell.dataset.day);
@@ -1953,6 +2027,7 @@ function bind() {
 
 bind();
 bindDragDrop();
+bindTouchDrag();
 renderSnipbar();
 fitZoom();
 updateSaveState();
