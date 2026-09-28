@@ -94,7 +94,7 @@
       <p>오른쪽 위 <u>「누구 계획표로 볼까요?」</u>에서 이름을 고르면 그 사람이 받을 종이가 보여요. 다 됐으면 <u>개인별 인쇄</u>.</p>
     </li>
   </ol>
-  <p class="colors">글자는 기본이 검정이에요. 줄을 누르고 위의 <span class="c-blue">파랑</span>·<span class="c-red">빨강</span>을 누르면 색이 바뀌고, 한 번 더 누르면 검정으로 돌아와요.
+  <p class="colors">글자색은 버튼마다 정해 둔 색으로 들어가요(<b>버튼 고치기</b>에서 검정·<span class="c-blue">파랑</span>·<span class="c-red">빨강</span>). 한 줄만 바꾸려면 줄 맨 앞에 <span class="c-red">!</span>(빨강)나 <span class="c-blue">^</span>(파랑)를 치세요.
     날짜 칸이나 버튼은 <b>끌어다 놓아서</b> 옮길 수도 있어요.</p>
   <button type="button" id="hintClose" class="iconbtn small" aria-label="사용법 닫기">✕</button>
 </section>
@@ -103,17 +103,11 @@
   <div class="sgroup"><span class="snip-label">출근</span><div id="snipWork" class="snipchips"></div></div>
   <div class="sgroup"><span class="snip-label">활동</span><div id="snipAct" class="snipchips"></div></div>
   <div class="sgroup"><span class="snip-label">장소</span><div id="snipPlace" class="snipchips"></div></div>
-  <div class="sgroup"><span class="snip-label">글자색</span>
-    <div id="snipColor" class="snipchips">
-      <button type="button" class="snip color c-blue" data-color="blue">파랑</button>
-      <button type="button" class="snip color c-red" data-color="red">빨강</button>
-    </div>
-  </div>
   <div class="snip-tools">
     <button type="button" id="snipEdit" class="linkbtn">버튼 고치기</button>
     <button type="button" id="clearMonth" class="linkbtn danger">이 달 모두 지우기</button>
   </div>
-  <p class="snip-help small muted">날짜 칸을 누르고 → 출근 → 활동 → 장소 (→ 색을 바꿀 때만 글자색). 버튼부터 누르면 여러 날짜에 한꺼번에, 버튼을 날짜 칸으로 끌어다 놓아도 돼요.</p>
+  <p class="snip-help small muted">날짜 칸을 누르고 → 출근 → 활동 → 장소. 글자색은 「버튼 고치기」에서 버튼마다 정해요. 버튼부터 누르면 여러 날짜에 한꺼번에, 버튼을 날짜 칸으로 끌어다 놓아도 돼요.</p>
 </div>
 
 <main class="desk">
@@ -176,7 +170,7 @@
 
   <div data-panel="snippets" hidden>
     <div class="pv-titlerow"><h1>자주 쓰는 일정</h1></div>
-    <p class="pv-help">달력 위 버튼으로 나오는 일정이에요. <b>출근</b>은 칸 맨 위 한 줄(하나만), <b>활동</b>은 그 아래에 여러 개, <b>장소</b>는 활동 바로 아래 줄에 들어가요.
+    <p class="pv-help">달력 위 버튼으로 나오는 일정이에요. <b>출근</b>은 칸 맨 위 한 줄(하나만), <b>활동</b>은 그 아래에 여러 개, <b>장소</b>는 활동 바로 아래 줄에 들어가요. 이름 아래에서 <b>글자색</b>을 고르면 그 색으로 들어가요.
       달력에서 칸을 고칠 때 <b>「자주 쓰는 일정으로 저장」</b>을 눌러 만들 수도 있어요.</p>
     <h2>출근</h2>
     <ul id="snippetWork" class="sniprows"></ul>

@@ -271,6 +271,13 @@ button:focus-visible, select:focus-visible, [contenteditable]:focus-visible { ou
 body[data-view="people"] .snipbar, body[data-view="login"] .snipbar { display: none; }
 .sniprows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .sniprow { display: grid; grid-template-columns: 9em 1fr auto; gap: 8px; align-items: start; }
+.snipmeta { display: flex; flex-direction: column; gap: 4px; }
+.colorpick { padding: 4px 6px; border: 1px solid var(--bar-line); border-radius: 6px; background: var(--bar); font: inherit; font-size: 12.5px; font-weight: 700; }
+.colorpick.c-black { color: var(--ui-text); }
+.colorpick.c-blue { color: #1747b5; }
+.colorpick.c-red { color: #d1242f; }
+.snip.c-blue { color: var(--accent); font-weight: 700; }
+.snip.c-red { color: #d6424c; font-weight: 700; }
 .rowacts { display: flex; gap: 0; }
 .sniprow input, .sniprow textarea {
   width: 100%; padding: 7px 9px; border: 1px solid var(--bar-line); border-radius: 6px; background: var(--bar); color: var(--ui-text); font: inherit; font-size: 13.5px;

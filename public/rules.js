@@ -24,6 +24,7 @@ function setTagGroups(groups) {
 
 // 자주 쓰는 일정 (처음 값 — 화면의 「자주 쓰는 일정」 탭에서 바꿈)
 // kind: 'work' = 출근·근무 줄 (칸 맨 위, 하나만), 'activity' = 활동 (여러 개 가능), 'place' = 장소 (활동 바로 아래 줄)
+// color: '' (검정) | 'blue' | 'red' — 칸에 넣을 때 모든 줄에 그 색 표시를 붙임
 const DEFAULT_SNIPPETS = [
   { kind: 'work', name: '9시~12시', text: '출근(9시~12시)' },
   { kind: 'work', name: '9시~11시', text: '출근(9시~11시)' },
@@ -32,7 +33,7 @@ const DEFAULT_SNIPPETS = [
   { kind: 'activity', name: '글쓰기', text: '*글쓰기' },
   { kind: 'activity', name: '체육', text: '[탁구] *체육(탁구)\n[탁구] →장애인체육회강사\n[배드민턴] *체육(배드민턴)\n[배드민턴] →장애인형국민체육센터' },
   { kind: 'activity', name: '자립아카데미', text: '*자립아카데미\n[남] *남자: 4층 프로그램실(의사소통기술)\n[여] *여자: 3층 프로그램실(이미지메이킹)' },
-  { kind: 'activity', name: '우천 안내', text: '!우천 시 실내 체육관으로 모임' },
+  { kind: 'activity', name: '우천 안내', text: '우천 시 실내 체육관으로 모임', color: 'red' },
   { kind: 'place', name: '3층 강당', text: '→3층 강당' },
   { kind: 'place', name: '3층 프로그램실', text: '→3층 프로그램실' },
   { kind: 'place', name: '4층 프로그램실', text: '→4층 프로그램실' },
@@ -93,11 +94,26 @@ function recolorLine(line, color) {
 }
 const lineColorName = (line) => parseLine(line).color || 'black';
 
+// 버튼 색 정리: 색이 따로 없던 예전 버튼은 글에 붙은 색 표시(! ^)에서 색을 읽고 표시는 뗌
+function normalizeSnippetColor(x) {
+  if (x.color === 'blue' || x.color === 'red' || x.color === '') return x;
+  const lines = cellLines(x.text);
+  const colors = [...new Set(lines.map((l) => parseLine(l).color))];
+  if (colors.length === 1 && colors[0]) return { ...x, color: colors[0], text: lines.map((l) => recolorLine(l, 'black')).join('\n') };
+  return { ...x, color: '' };
+}
+// 칸에 넣을 글: 버튼 색을 모든 줄에
+function snippetText(x) {
+  if (!x.color) return x.text;
+  return cellLines(x.text).map((l) => recolorLine(l, x.color)).join('\n');
+}
+const coloredSnippet = (x) => ({ ...x, text: snippetText(x) });
+
 // 예전(종류 없는) 자주 쓰는 일정을 출근/활동으로 나눔
 function splitSnippets(list) {
   const out = [];
   const seen = new Set();
-  const push = (x) => { const k = x.kind + '\u0000' + x.text; if (!seen.has(k) && x.text.trim()) { seen.add(k); out.push(x); } };
+  const push = (x0) => { const x = normalizeSnippetColor(x0); const k = x.kind + '\u0000' + x.text; if (!seen.has(k) && x.text.trim()) { seen.add(k); out.push(x); } };
   for (const x of list || []) {
     if (x.kind === 'work' || x.kind === 'activity' || x.kind === 'place') { push(x); continue; }
     const lines = cellLines(x.text);
@@ -408,7 +424,7 @@ function normalizeMonth(data, m) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, upgradeColors, SNIPPETS_VERSION, lineColorName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
+    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, upgradeColors, normalizeSnippetColor, snippetText, coloredSnippet, SNIPPETS_VERSION, lineColorName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
     parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches,
   };
 }

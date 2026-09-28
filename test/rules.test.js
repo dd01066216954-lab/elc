@@ -217,8 +217,9 @@ test('예전 자주 쓰는 일정 나누기', () => {
     { name: '우천', text: '!우천' },
   ]);
   assert.deepStrictEqual(out.map((x) => [x.kind, x.text]), [
-    ['work', '출근(9시~12시)'], ['activity', '*영화 감상'], ['activity', '*글쓰기'], ['activity', '!우천'],
+    ['work', '출근(9시~12시)'], ['activity', '*영화 감상'], ['activity', '*글쓰기'], ['activity', '우천'],
   ]);
+  assert.strictEqual(out[3].color, 'red', '! 로 시작하던 예전 버튼은 빨강 버튼으로');
   assert.strictEqual(out[0].name, '9시~12시');
 });
 
@@ -247,4 +248,15 @@ test('장소: 활동 바로 아래에 넣고, 다시 누르면 뺌', () => {
   assert.strictEqual(R.togglePlace(t, hall, null), '출근(9시~12시)\n*노래+댄스\n*글쓰기\n→3층 강당');
   assert.strictEqual(R.togglePlace('출근(9시~12시)\n*노래+댄스\n→3층 강당', hall, 1), '출근(9시~12시)\n*노래+댄스');
   assert.strictEqual(R.togglePlace('', hall, null), '→3층 강당');
+});
+
+test('버튼 색: 설정한 색을 모든 줄에, 예전 버튼은 글의 색 표시에서 읽음', () => {
+  assert.strictEqual(R.snippetText({ text: '*영화 감상\n→감상문 쓰기', color: 'blue' }), '^*영화 감상\n^→감상문 쓰기');
+  assert.strictEqual(R.snippetText({ text: '*글쓰기', color: '' }), '*글쓰기');
+  assert.deepStrictEqual(R.normalizeSnippetColor({ kind: 'activity', name: '우천', text: '!우천 시 실내' }),
+    { kind: 'activity', name: '우천', text: '우천 시 실내', color: 'red' });
+  assert.strictEqual(R.normalizeSnippetColor({ text: '^a\n!b' }).color, '', '섞여 있으면 글 그대로');
+  // 색이 달라도 같은 활동으로 봄 → 다시 누르면 빠짐
+  const x = R.coloredSnippet({ kind: 'activity', text: '*글쓰기', color: 'red' });
+  assert.strictEqual(R.toggleActivity('출근\n^*글쓰기', x), '출근');
 });

@@ -89,7 +89,7 @@ test('반 나누기 설정 저장 · 저장된 달 목록', async () => {
   assert.strictEqual((await call('/settings')).data.snippets, null);
   assert.strictEqual((await call('/settings')).data.snippetsVersion, 1);
   await call('/settings', { method: 'PUT', body: { snippets: [{ kind: 'place', name: '강당', text: '→강당' }, { name: '', text: ' ' }], snippetsVersion: 2 } });
-  assert.deepStrictEqual((await call('/settings')).data.snippets, [{ kind: 'place', name: '강당', text: '→강당' }]);
+  assert.deepStrictEqual((await call('/settings')).data.snippets, [{ kind: 'place', color: '', name: '강당', text: '→강당' }]);
   assert.strictEqual((await call('/settings')).data.snippetsVersion, 2);
   await call('/settings', { method: 'PUT', body: { tagGroups: [{ name: '조리', tags: ['오전조', ' 오후조 ', ''] }] } });
   assert.deepStrictEqual((await call('/settings')).data.tagGroups, [{ name: '조리', tags: ['오전조', '오후조'] }]);

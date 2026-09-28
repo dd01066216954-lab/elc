@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, SNIPPETS_VERSION, lineColorName, cellLines, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, SNIPPETS_VERSION, lineColorName, cellLines, coloredSnippet, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -1007,6 +1007,7 @@ function renderSnipbar() {
   const ed = state.editing && state.editing.day ? state.editing : null;
   const chip = (x, i) => {
     const cls = ['snip', x.kind];
+    if (x.color) cls.push('c-' + x.color);
     if (state.stamp && state.stamp.i === i) cls.push('on');
     if (ed && hasBlock(ed.ta.value, x)) cls.push('in');
     return `<button type="button" class="${cls.join(' ')}" data-snip="${i}" draggable="true" title="${esc(x.text)}">${esc(x.name || '(이름 없음)')}</button>`;
@@ -1016,18 +1017,9 @@ function renderSnipbar() {
   $('snipAct').innerHTML = list('activity') || '<span class="muted small">없음</span>';
   $('snipPlace').innerHTML = list('place') || '<span class="muted small">없음</span>';
   $('snipbar').classList.toggle('editing', !!ed);
-  let on = '';
-  const edAny = state.editing;
-  if (edAny) {
-    const ed = edAny;
-    const lines = ed.ta.value.split('\n');
-    const colors = [...new Set(colorTargets(ed).map((i) => lineColorName(lines[i])))];
-    if (colors.length === 1) on = colors[0];
-  }
-  document.querySelectorAll('#snipColor [data-color]').forEach((b) => b.classList.toggle('in', b.dataset.color === on));
 }
 
-/* ===== 글자색: 방금 넣은 활동, 아니면 커서가 있는 줄 ===== */
+/* ===== 기준 줄: 방금 넣은 활동, 아니면 커서가 있는 줄 (장소를 넣을 자리) ===== */
 function colorTargets(ed) {
   const ta = ed.ta;
   const lines = ta.value.split('\n');
@@ -1035,24 +1027,9 @@ function colorTargets(ed) {
   const i = ta.value.slice(0, ta.selectionStart).split('\n').length - 1;
   return lines[i] && lines[i].trim() ? [i] : [];
 }
-function applyColor(color) {
-  const ed = state.editing;
-  if (!ed) { toast('먼저 날짜 칸을 누르세요. 방금 넣은 활동이나 커서가 있는 줄의 색을 바꿔요.'); return; }
-  const ta = ed.ta;
-  const lines = ta.value.split('\n');
-  const idx = colorTargets(ed);
-  if (!idx.length) { toast('색을 바꿀 줄에 커서를 두세요.'); return; }
-  // 이미 그 색이면 검정으로 (다시 누르면 풀림)
-  const next = idx.every((i) => lineColorName(lines[i]) === color) ? 'black' : color;
-  idx.forEach((i) => { lines[i] = recolorLine(lines[i], next); });
-  if (ed.lastBlock) ed.lastBlock = idx.map((i) => lines[i]);
-  const caret = ta.selectionStart;
-  ta.value = lines.join('\n');
-  ta.setSelectionRange(Math.min(caret, ta.value.length), Math.min(caret, ta.value.length));
-  ta.dispatchEvent(new Event('input'));
-}
 function snipClick(i) {
-  const x = state.snippets[i];
+  const x0 = state.snippets[i];
+  const x = x0 && coloredSnippet(x0); // 버튼에 정한 색을 붙인 글
   if (!x) return;
   const ed = state.editing;
   if (ed && ed.day) {
@@ -1104,7 +1081,7 @@ function showStampNotice() {
 }
 function stampDay(d) {
   const st = state.stamp;
-  const x = state.snippets[st.i];
+  const x = coloredSnippet(state.snippets[st.i]);
   const mo = cur();
   const old = mo.days[d] || '';
   let next;
@@ -1157,7 +1134,7 @@ function saveCellAsSnippet(day) {
 const DRAG_DAY = 'application/x-day';
 const DRAG_SNIP = 'application/x-snip';
 function dropSnippet(i, d) {
-  const x = state.snippets[i];
+  const x = state.snippets[i] && coloredSnippet(state.snippets[i]);
   if (!x) return;
   const mo = cur();
   const old = mo.days[d] || '';
@@ -1323,7 +1300,14 @@ function clearMonth() {
 // 설정 탭: 출근 / 활동 목록
 function renderSnippetRows() {
   const row = (x, i) => `<li class="sniprow">
-      <input id="s-name-${i}" data-s="${i}" data-c="name" value="${esc(x.name)}" placeholder="버튼 이름" aria-label="${i + 1}번 이름" autocomplete="off">
+      <div class="snipmeta">
+        <input id="s-name-${i}" data-s="${i}" data-c="name" value="${esc(x.name)}" placeholder="버튼 이름" aria-label="${i + 1}번 이름" autocomplete="off">
+        <select id="s-color-${i}" data-s="${i}" data-c="color" class="colorpick c-${x.color || 'black'}" aria-label="${i + 1}번 글자색">
+          <option value=""${!x.color ? ' selected' : ''}>검정</option>
+          <option value="blue"${x.color === 'blue' ? ' selected' : ''}>파랑</option>
+          <option value="red"${x.color === 'red' ? ' selected' : ''}>빨강</option>
+        </select>
+      </div>
       <textarea id="s-text-${i}" data-s="${i}" data-c="text" rows="${Math.min(6, Math.max(1, x.text.split('\n').length))}" aria-label="${i + 1}번 내용" spellcheck="false">${esc(x.text)}</textarea>
       <span class="rowacts">
         <button type="button" class="iconbtn small" data-sup="${i}" aria-label="${i + 1}번 위로" title="위로">▲</button>
@@ -1827,14 +1811,13 @@ function bind() {
   snip.addEventListener('click', (e) => {
     const b = e.target.closest('[data-snip]');
     if (b) snipClick(+b.dataset.snip);
-    const c = e.target.closest('[data-color]');
-    if (c) applyColor(c.dataset.color);
     if (e.target.closest('#snipEdit')) { setView('people'); setTab('snippets'); }
   });
   const onSnipInput = (e) => {
     const el = e.target;
     if (!el.dataset.s) return;
     state.snippets[+el.dataset.s][el.dataset.c] = el.value;
+    if (el.dataset.c === 'color') el.className = `colorpick c-${el.value || 'black'}`;
     renderSnipbar();
     markSettingsDirty();
   };
@@ -1854,7 +1837,7 @@ function bind() {
   ['snippetWork', 'snippetAct', 'snippetPlace'].forEach((id) => { $(id).addEventListener('input', onSnipInput); $(id).addEventListener('click', onSnipDel); });
   $('clearMonth').addEventListener('click', clearMonth);
   const addSnip = (kind) => {
-    state.snippets.push({ kind, name: '', text: { work: '출근()', place: '→' }[kind] || '' });
+    state.snippets.push({ kind, name: '', text: { work: '출근()', place: '→' }[kind] || '', color: '' });
     renderSnippetRows();
     $(`s-name-${state.snippets.length - 1}`).focus();
   };
