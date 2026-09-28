@@ -498,6 +498,33 @@ body.loading .sheet { opacity: .45; transition: opacity .2s; }
   font-size: 12px;
 }
 
+/* 더보기 메뉴 */
+.moremenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 27;
+  min-width: 190px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bar);
+  border: 1px solid var(--bar-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 30, 50, .2);
+}
+.moremenu button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.moremenu button:hover, .moremenu button:focus-visible { background: var(--accent-soft); color: var(--accent); }
+
 /* 칸 오른쪽 위 근무시간 (고치는 화면에서만) */
 .cell-head .wh { margin-left: auto; font-size: 9px; font-weight: 500; color: #6a7383; background: #f1f3f6; border-radius: 3px; padding: 0 3px; white-space: nowrap; }
 .cell-head .wh:empty { display: none; }

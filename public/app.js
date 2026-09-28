@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, recolorLine, lineColorName, cellLines, coloredSnippet, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, splitSnippets, recolorLine, lineColorName, cellLines, coloredSnippet, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -42,7 +42,7 @@ const state = {
   groupRows: [],        // 반 나누기 입력칸 [{ name, tags(글자) }]
   pickerYear: 0,
   snippets: DEFAULT_SNIPPETS.map((x) => ({ ...x })), // 자주 쓰는 일정
-  stamp: null,          // { i, mode:'replace'|'append', before, days[] }
+  stamp: null,          // 버튼부터 눌렀을 때 { i, before, days[] }
   loadToken: 0,
   lastSaved: null,
 };
@@ -192,7 +192,7 @@ function updateHoursChip() {
   if (!mo || !people.length) { btn.textContent = '근무시간'; return; }
   const sums = people.map((p) => workSummary(mo, p).hours);
   const min = Math.min(...sums), max = Math.max(...sums);
-  btn.textContent = `근무 ${min === max ? formatHours(max) : `${formatHours(min).replace('시간', '')}~${formatHours(max)}`}`;
+  btn.textContent = `근무시간 · ${min === max ? formatHours(max) : `${formatHours(min).replace('시간', '')}~${formatHours(max)}`}`;
   btn.title = '사람마다 받는 줄이 달라 시간이 다를 수 있어요. 눌러서 사람별로 보기';
   if (!$('hoursPanel').hidden) renderHours();
 }
@@ -1037,7 +1037,7 @@ function beginStamp(i) {
   cancelPick();
   if (state.stamp) endStamp();
   if (previewPerson()) setPreview('');
-  state.stamp = { i, mode: 'replace', before: { ...cur().days }, days: [] };
+  state.stamp = { i, before: { ...cur().days }, days: [] };
   $('sheet').classList.add('picking');
   renderSnipbar();
   showStampNotice();
@@ -1046,25 +1046,16 @@ function showStampNotice() {
   const st = state.stamp;
   const x = state.snippets[st.i];
   const done = st.days.length ? ` (${st.days.length}칸)` : '';
-  const acts = [{ label: '끝내기', fn: endStamp }];
-  if (x.kind === 'activity') {
-    acts.unshift(
-      { label: st.mode === 'replace' ? '● 활동 바꾸기' : '○ 활동 바꾸기', fn: () => { st.mode = 'replace'; showStampNotice(); } },
-      { label: st.mode === 'add' ? '● 활동 더하기' : '○ 활동 더하기', fn: () => { st.mode = 'add'; showStampNotice(); } },
-    );
-  }
-  const what = `${(x.kind === 'work' ? '출근' : '활동')} 「${x.name}」`;
-  showNotice(`${what}을(를) 넣을 날짜 칸을 누르세요. 여러 칸 눌러도 돼요.${done}`, acts);
+  const how = x.kind === 'work' ? '넣을' : '넣을(이미 있으면 뺄)';
+  showNotice(`「${x.name}」을(를) ${how} 날짜 칸을 누르세요. 여러 칸 눌러도 돼요.${done}`, [{ label: '끝내기', fn: endStamp }]);
 }
+// 칸을 누르고 버튼을 누른 것과 같음: 출근은 그 줄만 바꾸기, 활동은 넣기/빼기
 function stampDay(d) {
   const st = state.stamp;
   const x = coloredSnippet(state.snippets[st.i]);
   const mo = cur();
   const old = mo.days[d] || '';
-  let next;
-  if (x.kind === 'work') next = hasBlock(old, x) ? old : applyWork(old, x);
-  else if (st.mode === 'add') next = hasBlock(old, x) ? old : toggleActivity(old, x);
-  else next = replaceActivities(old, x);
+  const next = x.kind === 'work' ? (hasBlock(old, x) ? old : applyWork(old, x)) : toggleActivity(old, x);
   if (next.trim()) mo.days[d] = next; else delete mo.days[d];
   if (!st.days.includes(d)) st.days.push(d);
   render();
@@ -1556,13 +1547,14 @@ function doPrint() {
 }
 
 /* ===== 위쪽 작은 창 (인쇄·기록·근무시간): 하나만 열림 ===== */
-const PANELS = ['printPanel', 'historyPanel', 'hoursPanel', 'replacePanel'];
+const PANELS = ['moreMenu', 'printPanel', 'historyPanel', 'hoursPanel', 'replacePanel'];
 function togglePanel(id) {
   const el = $(id);
   const open = el.hidden;
   PANELS.forEach((pid) => { $(pid).hidden = true; });
   $('monthPicker').hidden = true;
   el.hidden = !open;
+  $('moreBtn').setAttribute('aria-expanded', String(id === 'moreMenu' && open));
   return open;
 }
 
@@ -1772,6 +1764,7 @@ function bind() {
     if (b) restoreHistory(+b.dataset.restore, b.dataset.when);
   });
   $('hoursBtn').addEventListener('click', openHours);
+  $('moreBtn').addEventListener('click', () => togglePanel('moreMenu'));
   $('replaceBtn').addEventListener('click', openReplace);
   const snip = $('snipbar');
   snip.addEventListener('mousedown', (e) => { if (state.editing && e.target.closest('button')) e.preventDefault(); }); // 고치던 칸 포커스 유지 (아닐 땐 끌기 가능)
@@ -1988,11 +1981,12 @@ function bind() {
   // 사용법: 닫으면 상단 [사용법] 버튼으로 다시 열 수 있음
   const setGuide = (open) => {
     $('hint').hidden = !open;
-    $('helpBtn').hidden = open;
+    PANELS.forEach((pid) => { $(pid).hidden = true; });
+    if (open) window.scrollTo(0, 0);
     try { localStorage.setItem('hintClosed', open ? '0' : '1'); } catch (e) { /* 무시 */ }
   };
   try {
-    if (localStorage.getItem('hintClosed') === '1') { $('hint').hidden = true; $('helpBtn').hidden = false; }
+    if (localStorage.getItem('hintClosed') === '1') $('hint').hidden = true;
   } catch (e) { /* 저장소 없음 */ }
   $('hintClose').addEventListener('click', () => setGuide(false));
   $('helpBtn').addEventListener('click', () => setGuide(true));
