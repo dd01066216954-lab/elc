@@ -23,24 +23,18 @@ function setTagGroups(groups) {
 }
 
 // 자주 쓰는 일정 (처음 값 — 화면의 「자주 쓰는 일정」 탭에서 바꿈)
-// kind: 'work' = 출근·근무 줄 (칸 맨 위, 하나만), 'activity' = 활동 (여러 개 가능), 'place' = 장소 (활동 바로 아래 줄)
+// kind: 'work' = 출근·근무 줄 (칸 맨 위, 하나만), 'activity' = 활동 (여러 개 가능, 장소는 활동 글 아래 줄에)
 // color: '' (검정) | 'blue' | 'red' — 칸에 넣을 때 모든 줄에 그 색 표시를 붙임
 const DEFAULT_SNIPPETS = [
   { kind: 'work', name: '9시~12시', text: '출근(9시~12시)' },
   { kind: 'work', name: '9시~11시', text: '출근(9시~11시)' },
   { kind: 'activity', name: '영화', text: '*영화 감상\n→감상문 쓰기' },
-  { kind: 'activity', name: '노래+댄스', text: '*노래+댄스' },
+  { kind: 'activity', name: '노래+댄스', text: '*노래+댄스\n→3층 강당' },
   { kind: 'activity', name: '글쓰기', text: '*글쓰기' },
   { kind: 'activity', name: '체육', text: '[탁구] *체육(탁구)\n[탁구] →장애인체육회강사\n[배드민턴] *체육(배드민턴)\n[배드민턴] →장애인형국민체육센터' },
   { kind: 'activity', name: '자립아카데미', text: '*자립아카데미\n[남] *남자: 4층 프로그램실(의사소통기술)\n[여] *여자: 3층 프로그램실(이미지메이킹)' },
   { kind: 'activity', name: '우천 안내', text: '우천 시 실내 체육관으로 모임', color: 'red' },
-  { kind: 'place', name: '3층 강당', text: '→3층 강당' },
-  { kind: 'place', name: '3층 프로그램실', text: '→3층 프로그램실' },
-  { kind: 'place', name: '4층 프로그램실', text: '→4층 프로그램실' },
-  { kind: 'place', name: '장애인형국민체육센터', text: '→장애인형국민체육센터' },
 ];
-// 이 번호보다 옛날에 저장된 자주 쓰는 일정에는 새로 생긴 종류(장소)의 처음 값을 한 번 넣어 줌
-const SNIPPETS_VERSION = 2;
 
 /* ===== 칸 = 출근 줄 + 활동 줄 ===== */
 const isWorkLine = (line) => /출근/.test(line) || (/근무/.test(line) && /\d\s*(시|:)/.test(line));
@@ -69,15 +63,6 @@ function toggleActivity(text, snip) {
   if (hasBlock(text, snip)) return removeBlock(text, snip);
   return [...cellLines(text), ...snipLines(snip)].join('\n');
 }
-// 장소 넣기: after(줄 번호) 바로 아래에. 이미 있으면 뺌
-function togglePlace(text, snip, after) {
-  if (hasBlock(text, snip)) return removeBlock(text, snip);
-  const lines = String(text || '').split('\n');
-  const at = after == null || after < 0 || after >= lines.length ? lines.length : after + 1;
-  lines.splice(at, 0, ...snipLines(snip));
-  return lines.filter((l, i, a) => l.trim() || (i > 0 && i < a.length - 1)).join('\n');
-}
-
 // 활동을 이것 하나로 (출근 줄은 그대로)
 function replaceActivities(text, snip) {
   return [...cellLines(text).filter(isWorkLine), ...snipLines(snip)].join('\n');
@@ -115,7 +100,8 @@ function splitSnippets(list) {
   const seen = new Set();
   const push = (x0) => { const x = normalizeSnippetColor(x0); const k = x.kind + '\u0000' + x.text; if (!seen.has(k) && x.text.trim()) { seen.add(k); out.push(x); } };
   for (const x of list || []) {
-    if (x.kind === 'work' || x.kind === 'activity' || x.kind === 'place') { push(x); continue; }
+    if (x.kind === 'place') continue; // 장소 버튼은 없앰 (장소는 활동 글에 적음)
+    if (x.kind === 'work' || x.kind === 'activity') { push(x); continue; }
     const lines = cellLines(x.text);
     const work = lines.filter(isWorkLine);
     const rest = lines.filter((l) => !isWorkLine(l));
@@ -424,7 +410,7 @@ function normalizeMonth(data, m) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, upgradeColors, normalizeSnippetColor, snippetText, coloredSnippet, SNIPPETS_VERSION, lineColorName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
+    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, recolorLine, upgradeColors, normalizeSnippetColor, snippetText, coloredSnippet, lineColorName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
     parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches,
   };
 }

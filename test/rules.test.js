@@ -241,15 +241,6 @@ test('색을 바꾼 활동도 같은 활동으로 봄', () => {
   assert.strictEqual(R.toggleActivity(t, movie), '출근(9시~12시)');
 });
 
-test('장소: 활동 바로 아래에 넣고, 다시 누르면 뺌', () => {
-  const hall = { kind: 'place', text: '→3층 강당' };
-  const t = '출근(9시~12시)\n*노래+댄스\n*글쓰기';
-  assert.strictEqual(R.togglePlace(t, hall, 1), '출근(9시~12시)\n*노래+댄스\n→3층 강당\n*글쓰기');
-  assert.strictEqual(R.togglePlace(t, hall, null), '출근(9시~12시)\n*노래+댄스\n*글쓰기\n→3층 강당');
-  assert.strictEqual(R.togglePlace('출근(9시~12시)\n*노래+댄스\n→3층 강당', hall, 1), '출근(9시~12시)\n*노래+댄스');
-  assert.strictEqual(R.togglePlace('', hall, null), '→3층 강당');
-});
-
 test('버튼 색: 설정한 색을 모든 줄에, 예전 버튼은 글의 색 표시에서 읽음', () => {
   assert.strictEqual(R.snippetText({ text: '*영화 감상\n→감상문 쓰기', color: 'blue' }), '^*영화 감상\n^→감상문 쓰기');
   assert.strictEqual(R.snippetText({ text: '*글쓰기', color: '' }), '*글쓰기');
@@ -259,4 +250,9 @@ test('버튼 색: 설정한 색을 모든 줄에, 예전 버튼은 글의 색 �
   // 색이 달라도 같은 활동으로 봄 → 다시 누르면 빠짐
   const x = R.coloredSnippet({ kind: 'activity', text: '*글쓰기', color: 'red' });
   assert.strictEqual(R.toggleActivity('출근\n^*글쓰기', x), '출근');
+});
+
+test('예전 장소 버튼은 불러올 때 뺌', () => {
+  const out = R.splitSnippets([{ kind: 'place', name: '강당', text: '→강당' }, { kind: 'activity', name: '글쓰기', text: '*글쓰기' }]);
+  assert.deepStrictEqual(out.map((x) => x.name), ['글쓰기']);
 });
