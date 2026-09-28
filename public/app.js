@@ -1233,13 +1233,60 @@ function bindDragDrop() {
     else if (day) dropDay(+day, to, e.ctrlKey || e.altKey || e.metaKey);
   });
   sheet.addEventListener('dragend', clearDropMarks);
-  $('snipbar').addEventListener('dragstart', (e) => {
+  sheet.addEventListener('drop', () => { dragSnip = null; });
+  const bar = $('snipbar');
+  const clearChipMarks = () => bar.querySelectorAll('.drop-before, .drop-after').forEach((c) => c.classList.remove('drop-before', 'drop-after'));
+  bar.addEventListener('dragover', (e) => {
+    const t = e.target.closest('[data-snip]');
+    if (dragSnip == null || !t || +t.dataset.snip === dragSnip) { clearChipMarks(); return; }
+    if (state.snippets[+t.dataset.snip].kind !== state.snippets[dragSnip].kind) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const after = e.offsetX > t.offsetWidth / 2;
+    clearChipMarks();
+    t.classList.add(after ? 'drop-after' : 'drop-before');
+  });
+  bar.addEventListener('drop', (e) => {
+    const t = e.target.closest('[data-snip]');
+    if (dragSnip == null || !t) return;
+    e.preventDefault();
+    const after = t.classList.contains('drop-after');
+    clearChipMarks();
+    moveSnippet(dragSnip, +t.dataset.snip, after);
+  });
+  bar.addEventListener('dragend', () => { dragSnip = null; clearChipMarks(); });
+  bar.addEventListener('dragstart', (e) => {
     const b = e.target.closest && e.target.closest('[data-snip]');
     if (!b) return;
+    dragSnip = +b.dataset.snip;
+    e.dataTransfer.effectAllowed = 'copyMove';
     e.dataTransfer.setData(DRAG_SNIP, b.dataset.snip);
     e.dataTransfer.setData('text/plain', state.snippets[+b.dataset.snip].text);
-    e.dataTransfer.effectAllowed = 'copy';
   });
+}
+
+/* ===== 버튼 순서 바꾸기 (같은 묶음 안에서) ===== */
+let dragSnip = null; // 끌고 있는 버튼 번호
+function moveSnippet(from, target, after) {
+  if (from === target) return;
+  if (state.stamp) endStamp();
+  const list = state.snippets;
+  const item = list[from];
+  const tItem = list[target];
+  list.splice(from, 1);
+  let at = list.indexOf(tItem) + (after ? 1 : 0);
+  list.splice(at, 0, item);
+  renderSnipbar();
+  if (state.view === 'people' && state.tab === 'snippets') renderSnippetRows();
+  markSettingsDirty();
+}
+// 같은 종류 안에서 한 칸 위/아래
+function nudgeSnippet(i, dir) {
+  const kind = state.snippets[i].kind;
+  const same = state.snippets.map((x, k) => (x.kind === kind ? k : -1)).filter((k) => k >= 0);
+  const pos = same.indexOf(i) + dir;
+  if (pos < 0 || pos >= same.length) return;
+  moveSnippet(i, same[pos], dir > 0);
 }
 
 /* ===== 이 날 지우기 ===== */
@@ -1278,7 +1325,11 @@ function renderSnippetRows() {
   const row = (x, i) => `<li class="sniprow">
       <input id="s-name-${i}" data-s="${i}" data-c="name" value="${esc(x.name)}" placeholder="버튼 이름" aria-label="${i + 1}번 이름" autocomplete="off">
       <textarea id="s-text-${i}" data-s="${i}" data-c="text" rows="${Math.min(6, Math.max(1, x.text.split('\n').length))}" aria-label="${i + 1}번 내용" spellcheck="false">${esc(x.text)}</textarea>
-      <button type="button" class="iconbtn small" data-sdel="${i}" aria-label="${i + 1}번 지우기">✕</button>
+      <span class="rowacts">
+        <button type="button" class="iconbtn small" data-sup="${i}" aria-label="${i + 1}번 위로" title="위로">▲</button>
+        <button type="button" class="iconbtn small" data-sdown="${i}" aria-label="${i + 1}번 아래로" title="아래로">▼</button>
+        <button type="button" class="iconbtn small" data-sdel="${i}" aria-label="${i + 1}번 지우기" title="지우기">✕</button>
+      </span>
     </li>`;
   const list = (kind) => state.snippets.map((x, i) => (x.kind === kind ? row(x, i) : '')).join('') || '<li class="muted">아직 없어요.</li>';
   $('snippetWork').innerHTML = list('work');
@@ -1788,6 +1839,9 @@ function bind() {
     markSettingsDirty();
   };
   const onSnipDel = (e) => {
+    const up = e.target.closest('[data-sup]');
+    const down = e.target.closest('[data-sdown]');
+    if (up || down) { nudgeSnippet(+(up || down).dataset[up ? 'sup' : 'sdown'], up ? -1 : 1); return; }
     const b = e.target.closest('[data-sdel]');
     if (!b) return;
     const before = state.snippets.map((x) => ({ ...x }));
