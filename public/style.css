@@ -358,28 +358,146 @@ button:focus-visible, select:focus-visible, [contenteditable]:focus-visible { ou
 }
 .toast button { background: none; border: 0; color: #9ec0ff; font-weight: 700; cursor: pointer; padding: 0; }
 
+
+/* ===== 화면 전환 ===== */
+body[data-view="login"] .bar,
+body[data-view="login"] #hint,
+body[data-view="login"] #notice,
+body[data-view="login"] .desk,
+body[data-view="people"] #hint,
+body[data-view="people"] .desk,
+body[data-view="people"] .monthnav,
+body[data-view="people"] .previewpick,
+body[data-view="people"] .printwrap,
+body[data-view="people"] #helpBtn,
+body[data-view="people"] #peopleBtn { display: none !important; }
+body.loading .sheet { opacity: .45; transition: opacity .2s; }
+
+/* 저장 상태 */
+.savestate[data-kind="ok"] { color: #2c7a45; border-style: solid; border-color: #b9dcc4; }
+.savestate[data-kind="busy"] { color: var(--ui-muted); }
+.savestate[data-kind="bad"] { color: #b3261e; border-style: solid; border-color: #eab5b1; font-weight: 700; }
+.holidaywarn {
+  font-size: 12px;
+  color: #8a5a00;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: help;
+}
+
+/* 개인별 인쇄 창 */
+.printwrap { position: relative; }
+.printpanel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 25;
+  width: min(330px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--bar);
+  border: 1px solid var(--bar-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 30, 50, .2);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.printpanel p { margin: 0; }
+.printpanel .check { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.printpanel small { color: var(--ui-muted); }
+.printpanel .acts { display: flex; justify-content: flex-end; gap: 6px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 인쇄용 종이 묶음: 화면에서는 안 보이는 곳에 두고 글자 크기만 맞춤 */
+.printarea { position: absolute; left: -10000px; top: 0; }
+.s-roster { position: relative; max-height: 24mm; overflow: hidden; border-top: 1px dashed #9aa1ac; padding-top: .6mm; }
+.s-name b { font-size: 15px; }
+
+/* ===== 참여자 화면 ===== */
+.peopleview {
+  max-width: 760px;
+  margin: 16px auto 64px;
+  padding: 20px 20px 24px;
+  width: calc(100% - 32px);
+  background: var(--bar);
+  border: 1px solid var(--bar-line);
+  border-radius: 12px;
+  line-height: 1.55;
+}
+.peopleview h1 { font-size: 22px; margin: 0; }
+.peopleview h2 { font-size: 17px; margin: 28px 0 4px; padding-top: 18px; border-top: 1px solid var(--bar-line); }
+.pv-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pv-help { color: var(--ui-muted); font-size: 13.5px; margin: 10px 0 12px; }
+.muted { color: var(--ui-muted); }
+.ptable-wrap { overflow-x: auto; }
+.ptable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ptable th { text-align: left; font-weight: 500; color: var(--ui-muted); font-size: 12.5px; padding: 4px 6px; border-bottom: 1px solid var(--bar-line); }
+.ptable td { padding: 0; border-bottom: 1px solid var(--bar-line); }
+.ptable td.num, .ptable th.num { width: 2.6em; text-align: right; padding-right: 10px; color: var(--ui-muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.ptable td:last-child { width: 34px; text-align: center; }
+.ptable input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  padding: 8px 6px;
+}
+.ptable input:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-soft); }
+.ptable tr > td:nth-child(2) { width: 34%; }
+.pv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; }
+.tagsummary { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+.tagsummary .sum { padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); }
+.tagsummary .sum.muted { background: transparent; border: 1px dashed var(--bar-line); }
+.holidaylist { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.holidaylist li { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.holidaylist .date { font-variant-numeric: tabular-nums; color: var(--ui-muted); }
+.holidayform { display: flex; flex-wrap: wrap; gap: 8px; }
+.holidayform input, .logincard input {
+  padding: 7px 9px;
+  border: 1px solid var(--bar-line);
+  border-radius: 6px;
+  background: var(--bar);
+  color: var(--ui-text);
+  font: inherit;
+}
+.holidayform input:not([type="date"]) { flex: 1; min-width: 10em; }
+
+/* ===== 로그인 ===== */
+.loginview { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.logincard {
+  width: min(340px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 24px;
+  background: var(--bar);
+  border: 1px solid var(--bar-line);
+  border-radius: 12px;
+}
+.logincard h1 { margin: 0; font-size: 22px; }
+.logincard p { margin: 0; color: var(--ui-muted); font-size: 13.5px; }
+.logincard .btn { padding: 9px; }
+.logincard .err { color: #b3261e; min-height: 1.4em; }
+
 /* ===== 인쇄 ===== */
 @page { size: A4 landscape; margin: 0; }
 @media print {
   .ui { display: none !important; }
   body, .desk { background: #fff; padding: 0; margin: 0; }
   .sheet-wrap { zoom: 1 !important; width: auto; margin: 0; }
-  .sheet { box-shadow: none; break-after: page; }
+  .sheet { box-shadow: none; break-after: page; height: 209.5mm; overflow: hidden; }
   .sheet:last-child { break-after: auto; }
+  body.printing .desk { display: none !important; }
+  body.printing .printarea { position: static; }
   .cell.out { background: #fff; }
   .ln.tagged { background: none !important; }
-  .editable:hover, .cell.editable:not(.editing):hover::after {
-  content: "눌러서 고치기";
-  position: absolute;
-  right: 1mm; top: .8mm;
-  font-size: 9px;
-  color: #fff;
-  background: #1747b5;
-  border-radius: 3px;
-  padding: 0 4px;
-  pointer-events: none;
-}
-.cell.editing, .s-notes.editing { box-shadow: none !important; }
+  .editable:hover, .cell.editing, .s-notes.editing { box-shadow: none !important; }
+  .cell.editable:hover::after { content: none !important; }
   .s-name .blank, .s-mine.ghost { visibility: hidden; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

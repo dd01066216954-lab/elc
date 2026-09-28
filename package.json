@@ -1,0 +1,14 @@
+{
+  "name": "monthly-schedule",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:local": "wrangler d1 migrations apply monthly-schedule --local",
+    "db:remote": "wrangler d1 migrations apply monthly-schedule --remote",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.js test/*.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

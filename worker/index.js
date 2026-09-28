@@ -1,0 +1,243 @@
+// 월간 일정표 API (Cloudflare Worker + D1)
+// 화면 파일(public/)은 정적 파일로 나가고, /api/* 만 이 Worker가 처리한다.
+//
+// 필요한 설정
+//   D1 바인딩   DB
+//   시크릿      APP_PASSWORD      동료들이 들어올 때 쓰는 비밀번호
+//              HOLIDAY_API_KEY   공공데이터포털 특일 정보 서비스키 (없으면 공휴일 없이 동작)
+
+const COOKIE = 'sid';
+const SESSION_DAYS = 30;
+const HOLIDAY_REFRESH_MS = 7 * 24 * 60 * 60 * 1000; // 임시공휴일 대비 일주일마다 다시 확인
+const HOLIDAY_URL = 'https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo';
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    try {
+      return await route(request, env, url);
+    } catch (e) {
+      console.error(e);
+      return json({ error: '서버에서 문제가 생겼어요. 잠시 뒤 다시 해 주세요.' }, 500);
+    }
+  },
+};
+
+async function route(request, env, url) {
+  const path = url.pathname.slice(4); // '/api' 떼기
+  const method = request.method;
+
+  if (path === '/login' && method === 'POST') return login(request, env);
+  if (path === '/logout' && method === 'POST') {
+    return json({ ok: true }, 200, { 'Set-Cookie': `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` });
+  }
+  if (!(await authed(request, env))) return json({ error: 'login' }, 401);
+
+  let m;
+  if ((m = path.match(/^\/months\/(\d{4}-\d{2})$/))) {
+    if (method === 'GET') return getMonth(env, m[1]);
+    if (method === 'PUT') return putMonth(request, env, m[1]);
+  }
+  if (path === '/people') {
+    if (method === 'GET') return getPeople(env);
+    if (method === 'PUT') return putPeople(request, env);
+  }
+  if ((m = path.match(/^\/holidays\/(\d{4}-\d{2})$/)) && method === 'GET') return getHolidays(env, m[1]);
+  if (path === '/custom-holidays') {
+    if (method === 'GET') return getCustomHolidays(env);
+    if (method === 'POST') return addCustomHoliday(request, env);
+  }
+  if ((m = path.match(/^\/custom-holidays\/(\d{4}-\d{2}-\d{2})$/)) && method === 'DELETE') {
+    await env.DB.prepare("DELETE FROM holidays WHERE date = ? AND source = 'custom'").bind(m[1]).run();
+    return json({ ok: true });
+  }
+  return json({ error: '없는 주소예요.' }, 404);
+}
+
+/* ===== 로그인 (비밀번호 하나) ===== */
+async function login(request, env) {
+  if (!env.APP_PASSWORD) return json({ error: '관리자가 아직 비밀번호를 정하지 않았어요.' }, 500);
+  const { password } = await request.json().catch(() => ({}));
+  if (typeof password !== 'string' || !(await sameText(password, env.APP_PASSWORD))) {
+    await new Promise((r) => setTimeout(r, 600)); // 마구 넣어보기 늦추기
+    return json({ error: '비밀번호가 맞지 않아요.' }, 401);
+  }
+  const exp = Date.now() + SESSION_DAYS * 86400000;
+  const token = `${exp}.${await sign(env, String(exp))}`;
+  return json({ ok: true }, 200, {
+    'Set-Cookie': `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`,
+  });
+}
+
+async function authed(request, env) {
+  if (!env.APP_PASSWORD) return false;
+  const c = (request.headers.get('Cookie') || '').split(/;\s*/).find((x) => x.startsWith(COOKIE + '='));
+  if (!c) return false;
+  const [exp, sig] = c.slice(COOKIE.length + 1).split('.');
+  if (!exp || !sig || Number(exp) < Date.now()) return false;
+  return sameText(sig, await sign(env, exp));
+}
+
+// 비밀번호를 키로 서명 → 비밀번호를 바꾸면 기존 로그인이 모두 풀린다
+async function sign(env, text) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.APP_PASSWORD),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(text));
+  return btoa(String.fromCharCode(...new Uint8Array(mac))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function sameText(a, b) {
+  const [ha, hb] = await Promise.all([a, b].map((s) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))));
+  const x = new Uint8Array(ha), y = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
+
+/* ===== 달 ===== */
+async function getMonth(env, ym) {
+  const row = await env.DB.prepare('SELECT data, updated_at FROM months WHERE ym = ?').bind(ym).first();
+  if (!row) return json({ data: null, updatedAt: null });
+  return json({ data: JSON.parse(row.data), updatedAt: row.updated_at });
+}
+
+// 마지막 저장 우선. 단, 내가 불러온 뒤 다른 사람이 저장했으면 409로 알리고
+// 화면에서 '덮어쓰기'를 고르면 force로 다시 보낸다.
+async function putMonth(request, env, ym) {
+  const body = await request.json();
+  if (!body || typeof body.data !== 'object') return json({ error: '보낸 내용이 비어 있어요.' }, 400);
+  const row = await env.DB.prepare('SELECT data, updated_at FROM months WHERE ym = ?').bind(ym).first();
+  if (row && !body.force && row.updated_at !== (body.baseUpdatedAt ?? null)) {
+    return json({ conflict: true, data: JSON.parse(row.data), updatedAt: row.updated_at }, 409);
+  }
+  const now = Math.max(Date.now(), (row?.updated_at || 0) + 1);
+  await env.DB.prepare(
+    'INSERT INTO months (ym, data, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(ym) DO UPDATE SET data = ?2, updated_at = ?3',
+  ).bind(ym, JSON.stringify(body.data), now).run();
+  return json({ ok: true, updatedAt: now });
+}
+
+/* ===== 참여자 ===== */
+async function getPeople(env) {
+  const { results } = await env.DB.prepare('SELECT name, tags FROM people ORDER BY sort, id').all();
+  const meta = await env.DB.prepare("SELECT value FROM meta WHERE key = 'people_updated_at'").first();
+  return json({
+    people: results.map((r) => ({ name: r.name, tags: r.tags ? r.tags.split(',') : [] })),
+    updatedAt: meta ? Number(meta.value) : null,
+  });
+}
+
+// 표 전체를 통째로 저장 (21명 정도라 이게 제일 단순하고 안전)
+async function putPeople(request, env) {
+  const body = await request.json();
+  if (!body || !Array.isArray(body.people)) return json({ error: '보낸 내용이 비어 있어요.' }, 400);
+  const meta = await env.DB.prepare("SELECT value FROM meta WHERE key = 'people_updated_at'").first();
+  const current = meta ? Number(meta.value) : null;
+  if (!body.force && current !== (body.baseUpdatedAt ?? null)) {
+    const { results } = await env.DB.prepare('SELECT name, tags FROM people ORDER BY sort, id').all();
+    return json({
+      conflict: true,
+      people: results.map((r) => ({ name: r.name, tags: r.tags ? r.tags.split(',') : [] })),
+      updatedAt: current,
+    }, 409);
+  }
+  const people = body.people
+    .map((p) => ({
+      name: String(p.name || '').trim().slice(0, 50),
+      tags: (Array.isArray(p.tags) ? p.tags : []).map((t) => String(t).trim().replace(/,/g, '')).filter(Boolean).slice(0, 20),
+    }))
+    .filter((p) => p.name)
+    .slice(0, 500);
+  const now = Math.max(Date.now(), (current || 0) + 1);
+  const stmts = [env.DB.prepare('DELETE FROM people')];
+  people.forEach((p, i) => {
+    stmts.push(env.DB.prepare('INSERT INTO people (name, tags, sort) VALUES (?, ?, ?)').bind(p.name, p.tags.join(','), i));
+  });
+  stmts.push(env.DB.prepare("INSERT INTO meta (key, value) VALUES ('people_updated_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1").bind(String(now)));
+  await env.DB.batch(stmts);
+  return json({ ok: true, updatedAt: now });
+}
+
+/* ===== 공휴일 ===== */
+async function getHolidays(env, ym) {
+  let warning = null;
+  const fetched = await env.DB.prepare('SELECT fetched_at FROM holiday_fetches WHERE ym = ?').bind(ym).first();
+  if (!fetched || Date.now() - fetched.fetched_at > HOLIDAY_REFRESH_MS) {
+    try {
+      await refreshHolidays(env, ym);
+    } catch (e) {
+      console.warn('holiday api', ym, e && e.message);
+      // 예전에 받아 둔 게 있으면 그걸 쓰고 조용히 넘어감
+      if (!fetched) warning = '공휴일 정보를 불러오지 못했어요. 공휴일이 빠져 있을 수 있어요.';
+    }
+  }
+  const { results } = await env.DB.prepare(
+    "SELECT date, name, source FROM holidays WHERE date LIKE ? ORDER BY date, source DESC",
+  ).bind(ym + '-%').all();
+  const holidays = {};
+  for (const r of results) {
+    // 같은 날 둘 다 있으면 이름을 합침 (예: 추석 · 기관 휴무)
+    holidays[r.date] = holidays[r.date] && holidays[r.date] !== r.name ? `${holidays[r.date]} · ${r.name}` : r.name;
+  }
+  return json({ holidays, warning });
+}
+
+async function refreshHolidays(env, ym) {
+  const key = env.HOLIDAY_API_KEY;
+  if (!key) throw new Error('HOLIDAY_API_KEY 없음');
+  const [y, m] = ym.split('-');
+  // 공공데이터포털 키는 '인코딩'/'디코딩' 두 가지가 있다. 이미 %가 들어 있으면 인코딩 키이므로 그대로 붙인다.
+  const k = key.includes('%') ? key : encodeURIComponent(key);
+  const url = `${HOLIDAY_URL}?ServiceKey=${k}&solYear=${y}&solMonth=${m}&_type=json&numOfRows=50`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const rows = parseHolidayResponse(text);
+  const stmts = [env.DB.prepare("DELETE FROM holidays WHERE source = 'api' AND date LIKE ?").bind(ym + '-%')];
+  for (const r of rows) {
+    stmts.push(env.DB.prepare("INSERT OR REPLACE INTO holidays (date, name, source) VALUES (?, ?, 'api')").bind(r.date, r.name));
+  }
+  stmts.push(env.DB.prepare('INSERT OR REPLACE INTO holiday_fetches (ym, fetched_at) VALUES (?, ?)').bind(ym, Date.now()));
+  await env.DB.batch(stmts);
+}
+
+// 특일 정보 응답(JSON) → [{ date: 'YYYY-MM-DD', name }]
+// 공휴일이 하나면 item 이 배열이 아니라 객체로, 없으면 items 가 빈 문자열로 온다.
+// 키가 틀리면 _type=json 이어도 XML 오류가 오므로 JSON이 아니면 실패로 본다.
+export function parseHolidayResponse(text) {
+  let body;
+  try { body = JSON.parse(text); } catch { throw new Error('JSON 아님: ' + String(text).slice(0, 200)); }
+  const header = body?.response?.header;
+  if (!header || String(header.resultCode) !== '00') throw new Error('결과 코드 ' + (header && header.resultCode));
+  let items = body.response.body?.items?.item || [];
+  if (!Array.isArray(items)) items = [items];
+  return items
+    .filter((it) => it && it.isHoliday === 'Y' && it.locdate)
+    .map((it) => {
+      const s = String(it.locdate);
+      return { date: `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`, name: String(it.dateName || '공휴일').trim() };
+    });
+}
+
+async function getCustomHolidays(env) {
+  const { results } = await env.DB.prepare("SELECT date, name FROM holidays WHERE source = 'custom' ORDER BY date").all();
+  return json({ holidays: results });
+}
+
+async function addCustomHoliday(request, env) {
+  const { date, name } = await request.json().catch(() => ({}));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !String(name || '').trim()) {
+    return json({ error: '날짜와 이름을 모두 넣어 주세요.' }, 400);
+  }
+  await env.DB.prepare("INSERT OR REPLACE INTO holidays (date, name, source) VALUES (?, ?, 'custom')")
+    .bind(date, String(name).trim().slice(0, 30)).run();
+  return json({ ok: true });
+}
+
+function json(data, status = 200, headers = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers },
+  });
+}

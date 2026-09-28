@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-view="calendar">
 <header class="bar ui">
   <div class="bar-left">
     <div class="monthnav">
@@ -17,7 +17,8 @@
       <span id="monthLabel" class="monthlabel">2026년 9월</span>
       <button type="button" id="nextMonth" class="iconbtn" aria-label="다음달">▶</button>
     </div>
-    <span id="saveState" class="savestate" title="저장 기능은 다음 단계에서 연결됩니다">시험판 · 저장 안 됨</span>
+    <span id="saveState" class="savestate" role="status" aria-live="polite">불러오는 중…</span>
+    <span id="holidayWarn" class="holidaywarn" hidden>공휴일 정보 없음</span>
   </div>
   <div class="bar-right">
     <label class="previewpick" for="previewSelect">
@@ -26,7 +27,17 @@
     </label>
     <button type="button" id="helpBtn" class="btn" hidden>사용법</button>
     <button type="button" id="peopleBtn" class="btn">참여자</button>
-    <button type="button" id="printBtn" class="btn primary">개인별 인쇄</button>
+    <div class="printwrap">
+      <button type="button" id="printBtn" class="btn primary">개인별 인쇄</button>
+      <div id="printPanel" class="printpanel" hidden>
+        <p id="printSummary"></p>
+        <label class="check" for="includeFull"><input type="checkbox" id="includeFull"> 전체 버전 1장 포함 <small>(모든 줄 + 반별 명단)</small></label>
+        <div class="acts">
+          <button type="button" id="closePrint" class="btn">닫기</button>
+          <button type="button" id="doPrint" class="btn primary">인쇄하기</button>
+        </div>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -58,6 +69,47 @@
   </div>
 </main>
 
+<section id="peopleView" class="peopleview ui" hidden aria-label="참여자">
+  <div class="pv-head">
+    <button type="button" id="backBtn" class="btn">◀ 달력으로</button>
+    <h1>참여자</h1>
+    <span id="peopleCount" class="muted"></span>
+  </div>
+  <p class="pv-help">엑셀에서 <b>이름</b>과 <b>꼬리표</b> 두 칸을 복사해서 아래 표 첫 칸에 붙여넣으면 한꺼번에 들어가요.
+    꼬리표가 여러 개면 쉼표로 적어요. 예) <span class="chip">탁구, 남, 2부</span></p>
+  <div class="ptable-wrap">
+    <table class="ptable">
+      <thead><tr><th class="num">#</th><th>이름</th><th>꼬리표</th><th></th></tr></thead>
+      <tbody id="peopleRows"></tbody>
+    </table>
+  </div>
+  <div class="pv-row">
+    <button type="button" id="addPerson" class="btn">+ 한 줄 추가</button>
+    <div id="tagSummary" class="tagsummary"></div>
+  </div>
+
+  <h2>기관 휴무일</h2>
+  <p class="pv-help">공휴일은 저절로 들어가요. 그 밖에 센터가 쉬는 날(예: 근로자의 날)만 여기에 넣으면 달력에 빨간 글씨로 나와요.</p>
+  <ul id="customHolidays" class="holidaylist"></ul>
+  <form id="customForm" class="holidayform">
+    <input type="date" id="chDate" aria-label="날짜" required>
+    <input id="chName" placeholder="예: 근로자의 날" aria-label="이름" maxlength="30" required>
+    <button type="submit" class="btn">넣기</button>
+  </form>
+</section>
+
+<section id="loginView" class="loginview ui" hidden>
+  <form id="loginForm" class="logincard">
+    <h1>월간 일정표</h1>
+    <p>센터에서 받은 비밀번호를 넣어 주세요.</p>
+    <input type="password" id="pw" autocomplete="current-password" aria-label="비밀번호" required>
+    <button type="submit" class="btn primary">들어가기</button>
+    <p id="loginErr" class="err" role="alert"></p>
+  </form>
+</section>
+
+<div id="printArea" class="printarea" hidden></div>
+
 <div id="cellTools" class="celltools ui" hidden>
   <button type="button" data-act="move">다른 날로 옮기기</button>
   <button type="button" data-act="swap">다른 날과 바꾸기</button>
@@ -65,6 +117,7 @@
 
 <div id="toast" class="toast ui" hidden></div>
 
+<script src="rules.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

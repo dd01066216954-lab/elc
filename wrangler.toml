@@ -1,0 +1,15 @@
+name = "monthly-schedule"
+main = "worker/index.js"
+compatibility_date = "2025-09-01"
+
+# 화면 파일
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# DB — `npx wrangler d1 create monthly-schedule` 이 알려주는 database_id 를 아래에 넣으세요
+[[d1_databases]]
+binding = "DB"
+database_name = "monthly-schedule"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
