@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseHolidayResponse } from '../worker/index.js';
+import { parseHolidayResponse } from '../lib/api.js';
 
 const wrap = (items, code = '00') => JSON.stringify({ response: { header: { resultCode: code, resultMsg: 'NORMAL SERVICE.' }, body: { items, numOfRows: 50, pageNo: 1, totalCount: 0 } } });
 

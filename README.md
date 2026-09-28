@@ -10,66 +10,77 @@
 
 ## 구성
 
-| 폴더 | 내용 |
+| 파일·폴더 | 내용 |
 |---|---|
 | `public/` | 화면 (빌드 없는 HTML·CSS·JS). `rules.js`에 꼬리표·새 달 규칙 |
-| `worker/index.js` | API (`/api/*`) — 로그인, 달·참여자 저장, 공휴일 |
-| `migrations/` | D1 테이블. `0002`는 처음 쓸 때 10월을 만들 수 있게 넣는 9월 예시 (참여자 이름 없음) |
-| `test/` | 규칙·공휴일 응답 해석 테스트 (`npm test`) |
-| `preview/` | 서버 없이 보는 시연용 한 파일 HTML 만들기 (배포에는 안 들어감) |
+| `functions/api/[[path]].js`, `lib/api.js` | 저장·로그인·공휴일 API (Cloudflare Pages Functions) |
+| `setup.sql` | DB 표 만들기 + 처음 10월을 만들 수 있게 넣는 9월 예시 (참여자 이름 없음) |
+| `test/` | 규칙·공휴일 응답 해석 테스트 |
+| `preview/` | 서버 없이 보는 시연용 한 파일 HTML (배포에는 안 들어감) |
 
-Cloudflare **Worker 하나**가 화면 파일(정적 자산)과 API를 같이 내보냅니다. Pages를 따로 만들 필요가 없습니다.
+## 배포하기 — Cloudflare 웹사이트에서만 (프로그램 설치 필요 없음)
 
-## 처음 배포하기 (한 번만)
+HTML만 올리면 화면은 뜨지만, 고친 내용이 **각자 브라우저에만** 남아 동료끼리 공유되지 않습니다.
+그래서 Cloudflare의 무료 DB(D1)를 하나 만들어 연결합니다. 모두 [dash.cloudflare.com](https://dash.cloudflare.com) 화면에서 합니다.
+(Cloudflare 화면의 메뉴 이름은 가끔 조금씩 바뀝니다. 비슷한 이름을 찾으면 됩니다.)
 
-준비물: Cloudflare 계정(무료로 충분), 컴퓨터에 [Node.js](https://nodejs.org) 20 이상.
+**1. DB 만들기**
+1. 왼쪽 메뉴 **Storage & Databases → D1 SQL Database → Create**
+2. 이름 `monthly-schedule` → 만들기
+3. 만든 DB를 열고 **Console** 탭 → 이 저장소의 [`setup.sql`](setup.sql) 내용을 전부 복사해 붙여넣기 → **Execute**
 
-```sh
-npm install
-npx wrangler login                       # 브라우저가 열리면 Cloudflare 로그인
-npx wrangler d1 create monthly-schedule  # 출력된 database_id 를 wrangler.toml 에 붙여넣기
-npm run db:remote                        # 테이블 만들기
-npx wrangler secret put APP_PASSWORD     # 동료들이 쓸 비밀번호 입력
-npx wrangler secret put HOLIDAY_API_KEY  # 공휴일 서비스키 입력 (아래 참고, 나중에 넣어도 됨)
-npm run deploy
-```
+**2. 사이트 만들기 (GitHub 연결)**
+1. 왼쪽 메뉴 **Workers & Pages → Create → Pages** 탭 → **Import an existing Git repository**
+2. GitHub 계정을 연결하고 이 저장소(`elc`) 선택
+3. 설정
+   - Production branch: 코드가 있는 브랜치 (지금은 `claude/monthly-schedule-system-v2-0id59s`, main으로 합치면 `main`)
+   - Framework preset: **None**
+   - Build command: **비워 둠**
+   - Build output directory: **`public`**
+4. **Save and Deploy**
 
-마지막에 나오는 `https://monthly-schedule.<계정>.workers.dev` 주소와 비밀번호를 동료에게 알려 주면 됩니다.
-처음 들어가서 **참여자** 화면에 엑셀 명단(이름, 꼬리표 두 칸)을 붙여넣으세요.
+**3. DB와 비밀번호 연결**
+프로젝트 화면 → **Settings**
+1. **Bindings → Add → D1 database** — Variable name `DB`, 데이터베이스 `monthly-schedule`
+2. **Variables and Secrets → Add** — 종류를 **Secret**으로
+   - `APP_PASSWORD` : 동료들이 쓸 비밀번호
+   - `HOLIDAY_API_KEY` : 공휴일 서비스키 (아래 참고, 나중에 넣어도 됨)
+3. **Deployments** 탭 → 맨 위 배포의 **⋯ → Retry deployment** (설정은 다시 배포해야 적용됩니다)
+
+끝나면 `https://<프로젝트이름>.pages.dev` 주소가 생깁니다. 이 주소와 비밀번호를 동료에게 알려 주세요.
+처음 들어가서 **참여자** 화면에 엑셀 명단(이름, 꼬리표 두 칸)을 붙여넣으면 됩니다.
+
+이후 GitHub에 코드가 올라가면 Cloudflare가 **저절로 다시 배포**합니다.
 
 ### 공휴일 서비스키
 
 1. [공공데이터포털](https://www.data.go.kr)에서 「한국천문연구원_특일 정보」 활용신청 (보통 바로 승인)
 2. 마이페이지 → 활용 신청 현황 → **일반 인증키** 복사 (Encoding·Decoding 어느 쪽이든 됩니다)
-3. `npx wrangler secret put HOLIDAY_API_KEY` 에 붙여넣기
+3. 위 3-2의 `HOLIDAY_API_KEY`에 붙여넣고 다시 배포
 
 키가 없거나 API가 안 되면 앱은 공휴일 없이 동작하고 상단에 「공휴일 정보 없음」이 작게 뜹니다.
-받아 온 공휴일은 D1에 달마다 저장되고 일주일마다 다시 확인합니다(임시공휴일 대비).
+받아 온 공휴일은 DB에 달마다 저장되고 일주일마다 다시 확인합니다(임시공휴일 대비).
 센터 자체 휴무일은 **참여자** 화면 맨 아래에서 넣습니다.
-
-### 고친 뒤 다시 배포
-
-```sh
-npm run deploy
-```
-
-테이블을 바꾼 경우(`migrations/`에 파일 추가)에는 먼저 `npm run db:remote`.
 
 ### 비밀번호
 
-- `npx wrangler secret put APP_PASSWORD`로 바꾸면 **모든 사람이 로그아웃**되고 새 비밀번호로 다시 들어와야 합니다.
+- `APP_PASSWORD`를 바꾸고 다시 배포하면 **모든 사람이 로그아웃**되고 새 비밀번호로 들어와야 합니다.
 - 로그인은 30일 유지됩니다.
 - 더 엄격하게 막고 싶으면 Cloudflare Zero Trust의 **Access**로 이메일 인증을 앞에 붙일 수 있습니다(코드 수정 없음).
 
-## 내 컴퓨터에서 해 보기
+## 내 컴퓨터에서 해 보기 (개발용, 선택)
+
+Node.js 20 이상이 필요합니다.
 
 ```sh
 npm install
 echo "APP_PASSWORD=test1234" > .dev.vars
 npm run db:local
-npm run dev          # http://localhost:8787 , 비밀번호 test1234
+npm run dev          # http://localhost:8788 , 비밀번호 test1234
 npm test
 ```
+
+`wrangler.local.toml`은 이 로컬 실행에만 씁니다. 이름을 `wrangler.toml`로 바꾸면 Cloudflare 화면에서 DB·비밀번호 설정을 못 바꾸게 되니 그대로 두세요.
 
 ## 꼬리표 규칙
 
