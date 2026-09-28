@@ -215,7 +215,7 @@ async function loadHolidays(y, m) {
     const { data } = await api('/holidays/' + ym);
     for (const k of Object.keys(state.holidays)) if (k.startsWith(ym)) delete state.holidays[k];
     Object.assign(state.holidays, data.holidays || {});
-    state.holidayLoaded[ym] = true;
+    if (!data.warning) state.holidayLoaded[ym] = true; // 실패했으면 다음에 다시 시도
     setHolidayWarn(data.warning || '');
   } catch (e) {
     if (e.status === 401) throw e;
@@ -616,7 +616,7 @@ function toast(text, action) {
   }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, action ? 7000 : 3500);
+  toastTimer = setTimeout(() => { t.hidden = true; }, action ? 7000 : Math.max(3500, text.length * 90));
 }
 
 function setPreview(value) {
@@ -812,6 +812,7 @@ function bind() {
   $('peopleBtn').addEventListener('click', () => setView('people'));
   $('backBtn').addEventListener('click', () => setView('calendar'));
   $('printBtn').addEventListener('click', openPrintPanel);
+  $('holidayWarn').addEventListener('click', () => toast(state.holidayWarn));
   $('closePrint').addEventListener('click', () => { $('printPanel').hidden = true; });
   $('includeFull').addEventListener('change', () => { $('doPrint').disabled = !state.people.length && !$('includeFull').checked; });
   $('doPrint').addEventListener('click', doPrint);

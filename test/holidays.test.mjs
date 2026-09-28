@@ -76,3 +76,12 @@ test('대체공휴일: 추석 연휴 안에 개천절 (2028년)', () => {
 test('대체공휴일: API가 이미 준 날은 다시 넣지 않음', () => {
   assert.deepStrictEqual(subs([['2026-10-03', '개천절'], ['2026-10-05', '대체공휴일']]), []);
 });
+
+import { explainHolidayError } from '../lib/api.js';
+
+test('공휴일 API 실패 이유 설명', () => {
+  assert.match(explainHolidayError(new Error('HOLIDAY_API_KEY 없음')), /HOLIDAY_API_KEY가 없어요/);
+  assert.match(explainHolidayError(new Error('JSON 아님: <OpenAPI_ServiceResponse><cmmMsgHeader><errMsg>SERVICE ERROR</errMsg><returnAuthMsg>SERVICE_KEY_IS_NOT_REGISTERED_ERROR</returnAuthMsg><returnReasonCode>30</returnReasonCode>')), /아직 등록되지/);
+  assert.match(explainHolidayError(new Error('결과 코드 30')), /아직 등록되지/);
+  assert.match(explainHolidayError(new Error('HTTP 502')), /연결이 안 돼요/);
+});
