@@ -255,11 +255,13 @@ button:focus-visible, select:focus-visible, [contenteditable]:focus-visible { ou
 .c-sat:not(.holiday) .dnum { color: var(--sat); }
 .hname { color: var(--red); font-weight: 700; font-size: 11px; }
 .cell-body { position: relative; flex: 1; min-height: 0; overflow: hidden; margin-top: .6mm; }
-/* 토·일요일 빈 칸 빗금 (인쇄에도 나옴) */
-.cell.hatch .cell-body {
-  background: repeating-linear-gradient(45deg, transparent 0 2.2mm, #9aa1ac 2.2mm 2.45mm);
+/* 토·일요일 빈 칸: 왼쪽 아래 → 오른쪽 위 대각선 한 줄 (인쇄에도 나옴, 날짜는 왼쪽 위라 안 가려짐) */
+.cell.hatch {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cline x1='0' y1='100' x2='100' y2='0' stroke='%23555b66' stroke-width='1' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
-.cell.hatch.editing .cell-body { background: none; }
+.cell.hatch.editing { background-image: none; }
 
 /* 여러 줄 텍스트 (칸·안내문 공통) */
 .lines { white-space: pre-wrap; }
