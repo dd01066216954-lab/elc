@@ -14,7 +14,7 @@
 |---|---|
 | `public/` | 화면 (빌드 없는 HTML·CSS·JS). `rules.js`에 꼬리표·새 달 규칙 |
 | `functions/api/[[path]].js`, `lib/api.js` | 저장·로그인·공휴일 API (Cloudflare Pages Functions) |
-| `setup.sql` | DB 표 만들기 + 처음 10월을 만들 수 있게 넣는 9월 예시 (참여자 이름 없음) |
+| `lib/schema.js` | DB 표 — 처음 접속할 때 저절로 만들어짐. 처음 10월을 만들 수 있게 9월 예시도 넣음 (참여자 이름 없음) |
 | `test/` | 규칙·공휴일 응답 해석 테스트 |
 | `preview/` | 서버 없이 보는 시연용 한 파일 HTML (배포에는 안 들어감) |
 
@@ -26,8 +26,7 @@ HTML만 올리면 화면은 뜨지만, 고친 내용이 **각자 브라우저에
 
 **1. DB 만들기**
 1. 왼쪽 메뉴 **Storage & Databases → D1 SQL Database → Create**
-2. 이름 `monthly-schedule` → 만들기
-3. 만든 DB를 열고 **Console** 탭 → 이 저장소의 [`setup.sql`](setup.sql) 내용을 전부 복사해 붙여넣기 → **Execute**
+2. 이름 `monthly-schedule` → 만들기 (표는 앱이 처음 켜질 때 저절로 만듭니다. SQL을 붙여넣을 필요 없음)
 
 **2. 사이트 만들기 (GitHub 연결)**
 1. 왼쪽 메뉴 **Workers & Pages → Create → Pages** 탭 → **Import an existing Git repository**
@@ -75,12 +74,11 @@ Node.js 20 이상이 필요합니다.
 ```sh
 npm install
 echo "APP_PASSWORD=test1234" > .dev.vars
-npm run db:local
 npm run dev          # http://localhost:8788 , 비밀번호 test1234
 npm test
 ```
 
-`wrangler.local.toml`은 이 로컬 실행에만 씁니다. 이름을 `wrangler.toml`로 바꾸면 Cloudflare 화면에서 DB·비밀번호 설정을 못 바꾸게 되니 그대로 두세요.
+`wrangler.toml` 파일은 만들지 마세요. 있으면 Cloudflare 화면에서 DB·비밀번호 설정을 바꿀 수 없게 됩니다.
 
 ## 꼬리표 규칙
 

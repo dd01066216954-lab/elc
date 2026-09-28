@@ -3,7 +3,6 @@
   "private": true,
   "scripts": {
     "dev": "wrangler pages dev public --d1 DB=local --compatibility-date 2025-09-01",
-    "db:local": "wrangler d1 execute monthly-schedule --local -c wrangler.local.toml --file setup.sql",
     "test": "node --test test/*.test.js test/*.test.mjs"
   },
   "devDependencies": {
