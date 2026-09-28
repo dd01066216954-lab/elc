@@ -244,7 +244,16 @@ button:focus-visible, select:focus-visible, [contenteditable]:focus-visible { ou
   box-shadow: 0 2px 8px rgba(20, 30, 50, .06);
 }
 .snip-label { font-size: 12.5px; color: var(--ui-muted); font-weight: 500; }
-.snipchips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.snipchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.snipchips:not(.work) { flex: 1; }
+.snip-sep { width: 1px; align-self: stretch; background: var(--bar-line); margin: 0 2px; }
+.snip-tools { display: flex; gap: 14px; margin-left: auto; }
+.linkbtn.danger { color: #b3261e; }
+.snip-help { flex-basis: 100%; margin: 0; }
+.snipbar.editing .snip-help::before { content: "지금 고치는 칸에 넣어요 · "; color: var(--accent); font-weight: 700; }
+.snip.work { border-style: dashed; }
+.snip.in { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.snip.in::before { content: "✓ "; }
 .snip {
   border: 1px solid var(--bar-line);
   background: var(--desk);

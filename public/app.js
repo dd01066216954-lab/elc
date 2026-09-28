@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -558,6 +558,7 @@ function startEdit(box, day) {
     markDirty();
     updateHoursChip();
     updateSuggest();
+    renderSnipbar();
   });
   ta.addEventListener('keydown', (e) => {
     if (e.isComposing) return;
@@ -569,6 +570,7 @@ function startEdit(box, day) {
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
   if (day) showTools(host);
+  renderSnipbar();
 }
 
 function stopEdit() {
@@ -581,6 +583,7 @@ function stopEdit() {
   ed.host.classList.remove('editing');
   hideTools();
   hideSuggest();
+  renderSnipbar();
 }
 
 /* ===== 자동 완성 ===== */
@@ -993,20 +996,28 @@ function renderPicker() {
 }
 
 
-/* ===== 자주 쓰는 일정 ===== */
+/* ===== 자주 쓰는 일정 (출근 · 활동) ===== */
 function renderSnipbar() {
-  const bar = $('snipChips');
-  bar.innerHTML = state.snippets.map((x, i) =>
-    `<button type="button" class="snip${state.stamp && state.stamp.i === i ? ' on' : ''}" data-snip="${i}" title="${esc(x.text)}">${esc(x.name || '(이름 없음)')}</button>`).join('');
+  const ed = state.editing && state.editing.day ? state.editing : null;
+  const chip = (x, i) => {
+    const cls = ['snip', x.kind];
+    if (state.stamp && state.stamp.i === i) cls.push('on');
+    if (ed && hasBlock(ed.ta.value, x)) cls.push('in');
+    return `<button type="button" class="${cls.join(' ')}" data-snip="${i}" title="${esc(x.text)}">${esc(x.name || '(이름 없음)')}</button>`;
+  };
+  const list = (kind) => state.snippets.map((x, i) => (x.kind === kind ? chip(x, i) : '')).join('');
+  $('snipWork').innerHTML = list('work') || '<span class="muted small">없음</span>';
+  $('snipAct').innerHTML = list('activity') || '<span class="muted small">없음</span>';
+  $('snipbar').classList.toggle('editing', !!ed);
 }
 function snipClick(i) {
   const x = state.snippets[i];
   if (!x) return;
   const ed = state.editing;
   if (ed && ed.day) {
-    // 고치는 중인 칸에 넣기: 비었으면 채우고, 내용이 있으면 아래에 덧붙임
+    // 고치는 중인 칸: 출근은 바꾸기(같은 것 다시 누르면 빼기), 활동은 넣기/빼기
     const ta = ed.ta;
-    ta.value = ta.value.trim() ? ta.value.replace(/\n*$/, '') + '\n' + x.text : x.text;
+    ta.value = x.kind === 'work' ? applyWork(ta.value, x) : toggleActivity(ta.value, x);
     ta.setSelectionRange(ta.value.length, ta.value.length);
     ta.dispatchEvent(new Event('input'));
     hideSuggest();
@@ -1028,18 +1039,26 @@ function beginStamp(i) {
 function showStampNotice() {
   const st = state.stamp;
   const x = state.snippets[st.i];
-  showNotice(`「${x.name}」를 넣을 날짜 칸을 누르세요. 여러 칸 눌러도 돼요.${st.days.length ? ` (${st.days.length}칸 넣음)` : ''}`, [
-    { label: st.mode === 'replace' ? '● 칸 내용 바꾸기' : '○ 칸 내용 바꾸기', fn: () => { st.mode = 'replace'; showStampNotice(); } },
-    { label: st.mode === 'append' ? '● 아래에 덧붙이기' : '○ 아래에 덧붙이기', fn: () => { st.mode = 'append'; showStampNotice(); } },
-    { label: '끝내기', fn: endStamp },
-  ]);
+  const done = st.days.length ? ` (${st.days.length}칸)` : '';
+  const acts = [{ label: '끝내기', fn: endStamp }];
+  if (x.kind === 'activity') {
+    acts.unshift(
+      { label: st.mode === 'replace' ? '● 활동 바꾸기' : '○ 활동 바꾸기', fn: () => { st.mode = 'replace'; showStampNotice(); } },
+      { label: st.mode === 'add' ? '● 활동 더하기' : '○ 활동 더하기', fn: () => { st.mode = 'add'; showStampNotice(); } },
+    );
+  }
+  const what = x.kind === 'work' ? `출근 「${x.name}」` : `활동 「${x.name}」`;
+  showNotice(`${what}을(를) 넣을 날짜 칸을 누르세요. 여러 칸 눌러도 돼요.${done}`, acts);
 }
 function stampDay(d) {
   const st = state.stamp;
   const x = state.snippets[st.i];
   const mo = cur();
   const old = mo.days[d] || '';
-  const next = st.mode === 'append' && old.trim() ? old.replace(/\n*$/, '') + '\n' + x.text : x.text;
+  let next;
+  if (x.kind === 'work') next = hasBlock(old, x) ? old : applyWork(old, x);
+  else if (st.mode === 'add') next = hasBlock(old, x) ? old : toggleActivity(old, x);
+  else next = replaceActivities(old, x);
   if (next.trim()) mo.days[d] = next; else delete mo.days[d];
   if (!st.days.includes(d)) st.days.push(d);
   render();
@@ -1065,22 +1084,51 @@ function saveCellAsSnippet(day) {
   const text = (cur().days[day] || '').trim();
   stopEdit();
   if (!text) { toast('빈 칸은 저장할 수 없어요.'); return; }
-  let name = guessSnippetName(text);
-  const names = new Set(state.snippets.map((x) => x.name));
-  for (let n = 2; names.has(name); n++) name = `${guessSnippetName(text)} ${n}`;
-  state.snippets.push({ name, text });
+  const parts = splitSnippets([{ name: guessSnippetName(text.split('\n').filter((l) => !isWorkLine(l)).join('\n') || text), text }]);
+  const added = [];
+  for (const x of parts) {
+    if (state.snippets.some((y) => y.kind === x.kind && y.text === x.text)) continue;
+    const base = x.name;
+    const names = new Set(state.snippets.map((y) => y.name));
+    for (let n = 2; names.has(x.name); n++) x.name = `${base} ${n}`;
+    state.snippets.push(x);
+    added.push(`${x.kind === 'work' ? '출근' : '활동'} 「${x.name}」`);
+  }
   renderSnipbar();
+  if (!added.length) { toast('이미 같은 버튼이 있어요.'); return; }
   markSettingsDirty();
-  toast(`「${name}」 버튼으로 저장했어요. 이름은 참여자·설정 → 자주 쓰는 일정에서 바꿀 수 있어요.`);
+  toast(`${added.join(', ')} 버튼으로 저장했어요. 이름은 「고치기」에서 바꿀 수 있어요.`);
 }
 
-// 설정 탭
+/* ===== 이 달 모두 지우기 ===== */
+function clearMonth() {
+  stopEdit();
+  const mo = cur();
+  const n = Object.values(mo.days).filter((t) => t.trim()).length;
+  if (!n) { toast('지울 일정이 없어요.'); return; }
+  showNotice(`${state.m}월 날짜 칸 ${n}칸의 일정을 모두 지울까요? 제목·요일·안내문은 그대로 둬요.`, [
+    { label: '모두 지우기', fn: () => {
+      const before = { ...mo.days };
+      mo.days = {};
+      hideNotice();
+      render();
+      markDirty();
+      toast(`${state.m}월 일정 ${n}칸을 지웠어요.`, { label: '되돌리기', fn: () => { mo.days = before; render(); markDirty(); } });
+    } },
+    { label: '취소', fn: hideNotice },
+  ]);
+}
+
+// 설정 탭: 출근 / 활동 목록
 function renderSnippetRows() {
-  $('snippetRows').innerHTML = state.snippets.map((x, i) => `<li class="sniprow">
+  const row = (x, i) => `<li class="sniprow">
       <input id="s-name-${i}" data-s="${i}" data-c="name" value="${esc(x.name)}" placeholder="버튼 이름" aria-label="${i + 1}번 이름" autocomplete="off">
-      <textarea id="s-text-${i}" data-s="${i}" data-c="text" rows="${Math.min(6, Math.max(2, x.text.split('\n').length))}" aria-label="${i + 1}번 내용" spellcheck="false">${esc(x.text)}</textarea>
+      <textarea id="s-text-${i}" data-s="${i}" data-c="text" rows="${Math.min(6, Math.max(1, x.text.split('\n').length))}" aria-label="${i + 1}번 내용" spellcheck="false">${esc(x.text)}</textarea>
       <button type="button" class="iconbtn small" data-sdel="${i}" aria-label="${i + 1}번 지우기">✕</button>
-    </li>`).join('') || '<li class="muted">아직 없어요.</li>';
+    </li>`;
+  const list = (kind) => state.snippets.map((x, i) => (x.kind === kind ? row(x, i) : '')).join('') || '<li class="muted">아직 없어요.</li>';
+  $('snippetWork').innerHTML = list('work');
+  $('snippetAct').innerHTML = list('activity');
 }
 
 /* ===== 반 나누기 ===== */
@@ -1432,7 +1480,7 @@ function afterPrint() {
 async function boot() {
   const [{ data }, settings] = await Promise.all([api('/people'), api('/settings')]);
   if (settings.data.tagGroups) applyTagGroups(settings.data.tagGroups);
-  if (settings.data.snippets) state.snippets = settings.data.snippets;
+  if (settings.data.snippets) state.snippets = splitSnippets(settings.data.snippets);
   renderSnipbar();
   setPeople(data.people, data.updatedAt);
   state.booted = true;
@@ -1566,15 +1614,14 @@ function bind() {
     if (b) snipClick(+b.dataset.snip);
     if (e.target.closest('#snipEdit')) { setView('people'); setTab('snippets'); }
   });
-  const sRows = $('snippetRows');
-  sRows.addEventListener('input', (e) => {
+  const onSnipInput = (e) => {
     const el = e.target;
     if (!el.dataset.s) return;
     state.snippets[+el.dataset.s][el.dataset.c] = el.value;
     renderSnipbar();
     markSettingsDirty();
-  });
-  sRows.addEventListener('click', (e) => {
+  };
+  const onSnipDel = (e) => {
     const b = e.target.closest('[data-sdel]');
     if (!b) return;
     const before = state.snippets.map((x) => ({ ...x }));
@@ -1583,12 +1630,16 @@ function bind() {
     renderSnipbar();
     markSettingsDirty();
     toast(`「${gone.name}」를 지웠어요.`, { label: '되돌리기', fn: () => { state.snippets = before; renderSnippetRows(); renderSnipbar(); markSettingsDirty(); } });
-  });
-  $('addSnippet').addEventListener('click', () => {
-    state.snippets.push({ name: '', text: '' });
+  };
+  ['snippetWork', 'snippetAct'].forEach((id) => { $(id).addEventListener('input', onSnipInput); $(id).addEventListener('click', onSnipDel); });
+  $('clearMonth').addEventListener('click', clearMonth);
+  const addSnip = (kind) => {
+    state.snippets.push({ kind, name: '', text: kind === 'work' ? '출근()' : '' });
     renderSnippetRows();
     $(`s-name-${state.snippets.length - 1}`).focus();
-  });
+  };
+  $('addWork').addEventListener('click', () => addSnip('work'));
+  $('addActivity').addEventListener('click', () => addSnip('activity'));
   $('findText').addEventListener('input', updateReplace);
   $('doReplace').addEventListener('click', doReplace);
   const sg = $('suggest');

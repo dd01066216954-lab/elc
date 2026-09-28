@@ -181,3 +181,33 @@ test('자주 쓰는 일정 이름 짐작', () => {
   assert.strictEqual(R.guessSnippetName('!우천 시 실내로'), '우천 시 실내로');
   assert.strictEqual(R.guessSnippetName(''), '새 일정');
 });
+
+test('칸 = 출근 줄 + 활동: 출근 바꾸기, 활동 넣고 빼기', () => {
+  const w12 = { kind: 'work', text: '출근(9시~12시)' };
+  const w11 = { kind: 'work', text: '출근(9시~11시)' };
+  const movie = { kind: 'activity', text: '*영화 감상\n→감상문 쓰기' };
+  const rain = { kind: 'activity', text: '!우천 시 실내' };
+  let t = '';
+  t = R.applyWork(t, w12); assert.strictEqual(t, '출근(9시~12시)');
+  t = R.toggleActivity(t, movie); assert.strictEqual(t, '출근(9시~12시)\n*영화 감상\n→감상문 쓰기');
+  t = R.applyWork(t, w11); assert.strictEqual(t, '출근(9시~11시)\n*영화 감상\n→감상문 쓰기', '출근 줄만 바뀜');
+  t = R.toggleActivity(t, rain); assert.strictEqual(t, '출근(9시~11시)\n*영화 감상\n→감상문 쓰기\n!우천 시 실내');
+  assert.ok(R.hasBlock(t, movie));
+  t = R.toggleActivity(t, movie); assert.strictEqual(t, '출근(9시~11시)\n!우천 시 실내', '다시 누르면 빠짐');
+  t = R.applyWork(t, w11); assert.strictEqual(t, '!우천 시 실내', '같은 출근 다시 누르면 빠짐');
+  assert.strictEqual(R.replaceActivities('출근(9시~12시)\n*글쓰기', movie), '출근(9시~12시)\n*영화 감상\n→감상문 쓰기');
+  assert.ok(R.isWorkLine('[1부] 근무 9시~10시'));
+  assert.ok(!R.isWorkLine('*근무일지 쓰기'));
+});
+
+test('예전 자주 쓰는 일정 나누기', () => {
+  const out = R.splitSnippets([
+    { name: '영화', text: '출근(9시~12시)\n*영화 감상' },
+    { name: '글쓰기', text: '출근(9시~12시)\n*글쓰기' },
+    { name: '우천', text: '!우천' },
+  ]);
+  assert.deepStrictEqual(out.map((x) => [x.kind, x.text]), [
+    ['work', '출근(9시~12시)'], ['activity', '*영화 감상'], ['activity', '*글쓰기'], ['activity', '!우천'],
+  ]);
+  assert.strictEqual(out[0].name, '9시~12시');
+});

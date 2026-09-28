@@ -23,14 +23,62 @@ function setTagGroups(groups) {
 }
 
 // 자주 쓰는 일정 (처음 값 — 화면의 「자주 쓰는 일정」 탭에서 바꿈)
+// kind: 'work' = 출근·근무 줄 (칸 맨 위, 하나만), 'activity' = 활동 (여러 개 가능)
 const DEFAULT_SNIPPETS = [
-  { name: '영화', text: '출근(9시~12시)\n*영화 감상\n→감상문 쓰기' },
-  { name: '노래+댄스', text: '출근(9시~12시)\n*노래+댄스' },
-  { name: '글쓰기', text: '출근(9시~12시)\n*글쓰기' },
-  { name: '체육', text: '출근(9시~12시)\n[탁구] *체육(탁구)\n[탁구] →장애인체육회강사\n[배드민턴] *체육(배드민턴)\n[배드민턴] →장애인형국민체육센터' },
-  { name: '자립아카데미', text: '출근(9시~11시)\n*자립아카데미\n[남] *남자: 4층 프로그램실(의사소통기술)\n[여] *여자: 3층 프로그램실(이미지메이킹)' },
-  { name: '우천 안내', text: '!우천 시 실내 체육관으로 모임' },
+  { kind: 'work', name: '9시~12시', text: '출근(9시~12시)' },
+  { kind: 'work', name: '9시~11시', text: '출근(9시~11시)' },
+  { kind: 'activity', name: '영화', text: '*영화 감상\n→감상문 쓰기' },
+  { kind: 'activity', name: '노래+댄스', text: '*노래+댄스' },
+  { kind: 'activity', name: '글쓰기', text: '*글쓰기' },
+  { kind: 'activity', name: '체육', text: '[탁구] *체육(탁구)\n[탁구] →장애인체육회강사\n[배드민턴] *체육(배드민턴)\n[배드민턴] →장애인형국민체육센터' },
+  { kind: 'activity', name: '자립아카데미', text: '*자립아카데미\n[남] *남자: 4층 프로그램실(의사소통기술)\n[여] *여자: 3층 프로그램실(이미지메이킹)' },
+  { kind: 'activity', name: '우천 안내', text: '!우천 시 실내 체육관으로 모임' },
 ];
+
+/* ===== 칸 = 출근 줄 + 활동 줄 ===== */
+const isWorkLine = (line) => /출근/.test(line) || (/근무/.test(line) && /\d\s*(시|:)/.test(line));
+const cellLines = (text) => String(text || '').split('\n').filter((l) => l.trim());
+const snipLines = (snip) => cellLines(snip.text);
+
+// 출근 줄 바꾸기 (칸 맨 위로). 같은 걸 다시 누르면 지움
+function applyWork(text, snip) {
+  const lines = cellLines(text);
+  const work = lines.filter(isWorkLine);
+  const rest = lines.filter((l) => !isWorkLine(l));
+  const add = snipLines(snip);
+  const same = work.length === add.length && add.every((l) => work.includes(l));
+  return (same ? rest : [...add, ...rest]).join('\n');
+}
+const hasBlock = (text, snip) => { const lines = cellLines(text); const add = snipLines(snip); return add.length > 0 && add.every((l) => lines.includes(l)); };
+function removeBlock(text, snip) {
+  const lines = cellLines(text);
+  for (const l of snipLines(snip)) { const i = lines.indexOf(l); if (i >= 0) lines.splice(i, 1); }
+  return lines.join('\n');
+}
+// 활동 넣기/빼기 (이미 있으면 뺌)
+function toggleActivity(text, snip) {
+  if (hasBlock(text, snip)) return removeBlock(text, snip);
+  return [...cellLines(text), ...snipLines(snip)].join('\n');
+}
+// 활동을 이것 하나로 (출근 줄은 그대로)
+function replaceActivities(text, snip) {
+  return [...cellLines(text).filter(isWorkLine), ...snipLines(snip)].join('\n');
+}
+// 예전(종류 없는) 자주 쓰는 일정을 출근/활동으로 나눔
+function splitSnippets(list) {
+  const out = [];
+  const seen = new Set();
+  const push = (x) => { const k = x.kind + '\u0000' + x.text; if (!seen.has(k) && x.text.trim()) { seen.add(k); out.push(x); } };
+  for (const x of list || []) {
+    if (x.kind === 'work' || x.kind === 'activity') { push(x); continue; }
+    const lines = cellLines(x.text);
+    const work = lines.filter(isWorkLine);
+    const rest = lines.filter((l) => !isWorkLine(l));
+    if (work.length) push({ kind: 'work', name: work.join(' ').replace(/^.*?(\d.*\d\s*시?\)?).*$/, '$1').replace(/[()]/g, '').slice(0, 12) || '출근', text: work.join('\n') });
+    if (rest.length) push({ kind: 'activity', name: x.name, text: rest.join('\n') });
+  }
+  return out;
+}
 
 // 칸 내용으로 버튼 이름 짐작: '*영화 감상' → '영화 감상'
 function guessSnippetName(text) {
@@ -313,7 +361,7 @@ function normalizeMonth(data, m) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
+    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, replaceActivities, splitSnippets, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
     parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches,
   };
 }
