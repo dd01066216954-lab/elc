@@ -81,7 +81,7 @@ test('저장과 동시 편집 충돌', async () => {
 test('참여자 저장', async () => {
   const r = await call('/people', { method: 'PUT', body: { people: [{ name: '가', tags: ['탁구', '2부'] }, { name: ' ', tags: [] }], baseUpdatedAt: null } });
   assert.strictEqual(r.status, 200);
-  assert.deepStrictEqual((await call('/people')).data.people, [{ name: '가', tags: ['탁구', '2부'] }]);
+  assert.deepStrictEqual((await call('/people')).data.people, [{ name: '가', tags: ['탁구', '2부'], paused: false }]);
 });
 
 test('반 나누기 설정 저장 · 저장된 달 목록', async () => {
@@ -89,4 +89,27 @@ test('반 나누기 설정 저장 · 저장된 달 목록', async () => {
   await call('/settings', { method: 'PUT', body: { tagGroups: [{ name: '조리', tags: ['오전조', ' 오후조 ', ''] }] } });
   assert.deepStrictEqual((await call('/settings')).data.tagGroups, [{ name: '조리', tags: ['오전조', '오후조'] }]);
   assert.deepStrictEqual((await call('/months')).data.months, ['2026-09', '2026-10']);
+});
+
+test('참여자 잠시 빼기 저장', async () => {
+  const base = (await call('/people')).data.updatedAt;
+  await call('/people', { method: 'PUT', body: { people: [{ name: '가', tags: [], paused: true }, { name: '나', tags: [] }], baseUpdatedAt: base } });
+  assert.deepStrictEqual((await call('/people')).data.people.map((p) => [p.name, p.paused]), [['가', true], ['나', false]]);
+});
+
+test('기록: 덮어쓰기 전 상태가 남고, 되돌리기도 되돌릴 수 있음', async () => {
+  const cur = await call('/months/2026-11');
+  assert.strictEqual(cur.data.data, null);
+  let r = await call('/months/2026-11', { method: 'PUT', body: { data: { title: '처음', days: { 1: 'a' } }, baseUpdatedAt: null } });
+  r = await call('/months/2026-11', { method: 'PUT', body: { data: { title: '두번째', days: {} }, baseUpdatedAt: r.data.updatedAt } });
+  // 10분 안에 또 저장하면 기록은 하나만
+  await call('/months/2026-11', { method: 'PUT', body: { data: { title: '세번째', days: {} }, baseUpdatedAt: r.data.updatedAt } });
+  let v = (await call('/months/2026-11/versions')).data.versions;
+  assert.strictEqual(v.length, 1);
+  assert.strictEqual(v[0].filledDays, 1);
+  const back = await call(`/months/2026-11/versions/${v[0].id}/restore`, { method: 'POST' });
+  assert.strictEqual(back.data.data.title, '처음');
+  assert.strictEqual((await call('/months/2026-11')).data.data.title, '처음');
+  v = (await call('/months/2026-11/versions')).data.versions;
+  assert.strictEqual(v.length, 2, '되돌리기 직전(세번째)도 기록에 남음');
 });

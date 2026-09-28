@@ -27,10 +27,33 @@
       <select id="previewSelect"></select>
     </label>
     <button type="button" id="helpBtn" class="btn" hidden>사용법</button>
+    <div class="popwrap">
+      <button type="button" id="hoursBtn" class="btn">근무시간</button>
+      <div id="hoursPanel" class="printpanel hourspanel" hidden>
+        <div class="pp-head"><b id="hoursTitle">근무시간</b><button type="button" class="iconbtn small" data-close="hoursPanel" aria-label="닫기">✕</button></div>
+        <div class="hours-wrap">
+          <table class="hours"><thead><tr><th>이름</th><th class="n">근무일</th><th class="n">근무시간</th></tr></thead><tbody id="hoursBody"></tbody></table>
+        </div>
+        <p id="hoursNote" class="small muted"></p>
+        <div class="acts"><button type="button" id="copyHours" class="btn">엑셀용으로 복사</button></div>
+      </div>
+    </div>
+    <div class="popwrap">
+      <button type="button" id="historyBtn" class="btn">기록</button>
+      <div id="historyPanel" class="printpanel historypanel" hidden>
+        <div class="pp-head"><b>이 달의 예전 상태</b><button type="button" class="iconbtn small" data-close="historyPanel" aria-label="닫기">✕</button></div>
+        <p class="small muted">실수로 지우거나 덮어썼을 때 예전 상태로 되돌려요. 되돌려도 바로 전 상태가 기록에 남아요.</p>
+        <ul id="historyList" class="historylist"></ul>
+      </div>
+    </div>
     <button type="button" id="peopleBtn" class="btn">참여자·설정</button>
-    <div class="printwrap">
+    <div class="printwrap popwrap">
       <button type="button" id="printBtn" class="btn primary">개인별 인쇄</button>
       <div id="printPanel" class="printpanel" hidden>
+        <label class="field" for="printWho">누구 것을 인쇄할까요?
+          <select id="printWho"></select>
+        </label>
+        <div id="printPick" class="printpick" hidden></div>
         <p id="printSummary"></p>
         <label class="check" for="includeFull"><input type="checkbox" id="includeFull"> 전체 버전 1장 포함 <small>(모든 줄 + 반별 명단)</small></label>
         <div class="acts">
@@ -96,7 +119,7 @@
     <div id="importBox" class="importbox" hidden></div>
     <div class="ptable-wrap">
       <table class="ptable">
-        <thead><tr><th class="num">#</th><th>이름</th><th>꼬리표</th><th></th></tr></thead>
+        <thead><tr><th class="num">#</th><th>이름</th><th>꼬리표</th><th class="pause" title="잠시 빼기: 인쇄·근무시간·반별 인원에서 빠져요">잠시 빼기</th><th></th></tr></thead>
         <tbody id="peopleRows"></tbody>
       </table>
     </div>

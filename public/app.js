@@ -1,5 +1,5 @@
 'use strict';
-/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, clearHolidayDays, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
+/* global TAG_GROUPS, DEFAULT_TAG_GROUPS, setTagGroups, parsePeopleText, clearHolidayDays, workSummary, formatHours, pad, ymKey, daysIn, weekday, shiftMonth, parseLine, printedText, lineFor,
    textFor, splitTags, usedTags, makeMonth, normalizeMonth */
 
 // 편집 화면에서 꼬리표 줄 배경색 (인쇄에는 안 나옴) — 반 나누기에 적힌 순서대로
@@ -48,6 +48,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const curKey = () => ymKey(state.y, state.m);
 const cur = () => state.months[curKey()] && state.months[curKey()].data;
+const activePeople = () => state.people.filter((p) => !p.paused);
 const previewPerson = () => (state.preview === '' ? null : state.people[+state.preview] || null);
 const holidayName = (y, m, d) => state.holidays[`${y}-${pad(m)}-${pad(d)}`] || '';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -79,16 +80,20 @@ async function api(path, { method = 'GET', body } = {}) {
 }
 
 /* ===== 여러 줄 텍스트 → HTML =====
-   edit   : 원문 그대로(꼬리표 보임, 배경색) — 입력칸과 글자 위치가 정확히 겹쳐야 함
+   edit   : 고치는 화면. 꼬리표는 작은 딱지로 짧게, 배경색
+   raw    : 칸을 고치는 중. 원문 그대로 — 입력칸과 글자 위치가 정확히 겹쳐야 함
    person : 그 사람에게 들어가는 줄만, 꼬리표·'!' 제거
    full   : 모든 줄, 꼬리표는 글자로 남기고 '!'만 제거 (담당자용 전체 버전) */
 function linesHTML(text, mode, person) {
   const out = [];
   for (const raw of (text || '').split('\n')) {
     const p = parseLine(raw);
-    if (mode === 'edit') {
+    if (mode === 'raw' || mode === 'edit') {
       const bg = p.tags.length ? ` tagged" style="background:${tagColor(p.tags[0])}` : '';
-      const body = p.head ? `<span class="tg">${esc(p.head)}</span>${esc(p.rest)}` : esc(p.rest);
+      let body;
+      if (!p.head) body = esc(p.rest);
+      else if (mode === 'raw') body = `<span class="tg">${esc(p.head)}</span>${esc(p.rest)}`; // 입력칸과 글자 위치가 겹쳐야 함
+      else body = p.tags.map((t) => `<span class="tgc">${esc(t)}</span>`).join('') + esc(p.rest.trimStart()); // 짧게
       out.push(`<div class="ln ${p.color}${bg}">${body || '<br>'}</div>`);
     } else if (mode === 'full') {
       const t = printedText(p);
@@ -157,8 +162,8 @@ function sheetHTML(ym, mo, mode, person) {
   if (edit) mine = '<div class="s-mine ghost">나의 배정: (인쇄할 때 사람마다 자동으로 들어가요)</div>';
   let roster = '';
   if (mode === 'full') {
-    const text = usedTags(state.people).map((t) => {
-      const names = state.people.filter((p) => p.tags.includes(t)).map((p) => p.name);
+    const text = usedTags(activePeople()).map((t) => {
+      const names = activePeople().filter((p) => p.tags.includes(t)).map((p) => p.name);
       return `*${t}: ${names.join(', ')} (${names.length}명)`;
     }).join('\n');
     if (text) roster = `<div class="s-roster"><div class="lines">${linesHTML(text, 'person', null)}</div></div>`;
@@ -507,6 +512,8 @@ function startEdit(box, day) {
   ta.spellcheck = false;
   ta.value = day ? (mo.days[day] || '') : (mo.notes || '');
   box.appendChild(ta);
+  box.querySelector('.lines').innerHTML = linesHTML(ta.value, 'raw');
+  fit(box);
   const host = day ? box.closest('.cell') : box;
   host.classList.add('editing');
   state.editing = { box, ta, day, host };
@@ -517,7 +524,7 @@ function startEdit(box, day) {
     } else {
       mo.notes = ta.value;
     }
-    box.querySelector('.lines').innerHTML = linesHTML(ta.value, 'edit');
+    box.querySelector('.lines').innerHTML = linesHTML(ta.value, 'raw');
     if (day && (host.classList.contains('c-sun') || host.classList.contains('c-sat'))) {
       host.classList.toggle('hatch', !ta.value.trim());
     }
@@ -537,6 +544,8 @@ function stopEdit() {
   const ed = state.editing;
   if (!ed) return;
   state.editing = null;
+  ed.box.querySelector('.lines').innerHTML = linesHTML(ed.ta.value, 'edit');
+  fit(ed.box);
   ed.ta.remove();
   ed.host.classList.remove('editing');
   hideTools();
@@ -646,7 +655,8 @@ function renderBanner() {
   if (n.dataset.kind === 'notice' && !n.hidden) return;
   const person = previewPerson();
   if (!person || state.view !== 'calendar') { n.hidden = true; n.dataset.kind = ''; return; }
-  n.innerHTML = `<p><b>${esc(person.name)}</b> 님이 받을 종이를 보는 중이에요. 고치려면 오른쪽 버튼을 누르세요.</p><div class="acts"><button type="button" class="btn">다시 고치기</button></div>`;
+  const w = workSummary(cur() || { days: {} }, person);
+  n.innerHTML = `<p><b>${esc(person.name)}</b> 님이 받을 종이를 보는 중이에요.${w.days ? ` 이번 달 근무 <b>${w.days}일 · ${formatHours(w.hours)}</b>.` : ''} 고치려면 오른쪽 버튼을 누르세요.</p><div class="acts"><button type="button" class="btn">다시 고치기</button></div>`;
   n.querySelector('button').addEventListener('click', () => setPreview(''));
   n.hidden = false;
   n.dataset.kind = 'preview';
@@ -679,10 +689,12 @@ function setPreview(value) {
 }
 
 /* ===== 참여자 ===== */
+const personToRow = (p) => ({ name: p.name, tags: p.tags.join(', '), paused: !!p.paused });
+
 function setPeople(list, updatedAt) {
-  state.people = list.map((p) => ({ name: p.name, tags: [...p.tags] }));
+  state.people = list.map((p) => ({ name: p.name, tags: [...p.tags], paused: !!p.paused }));
   state.peopleSync.updatedAt = updatedAt;
-  state.peopleRows = state.people.map((p) => ({ name: p.name, tags: p.tags.join(', ') }));
+  state.peopleRows = state.people.map(personToRow);
   fillPreviewSelect();
   if (state.view === 'people') renderPeople();
 }
@@ -691,14 +703,14 @@ function fillPreviewSelect() {
   const sel = $('previewSelect');
   if (state.preview !== '' && !state.people[+state.preview]) state.preview = '';
   sel.innerHTML = '<option value="">전체</option>' +
-    state.people.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join(''); // 꼬리표는 설정 화면에서만
+    state.people.map((p, i) => `<option value="${i}">${esc(p.name)}${p.paused ? ' (쉼)' : ''}</option>`).join(''); // 꼬리표는 설정 화면에서만
   sel.value = state.preview;
 }
 
 // 표 입력칸 → 저장할 명단
 function rowsChanged() {
   state.people = state.peopleRows
-    .map((r) => ({ name: r.name.trim(), tags: splitTags(r.tags) }))
+    .map((r) => ({ name: r.name.trim(), tags: splitTags(r.tags), paused: !!r.paused }))
     .filter((p) => p.name);
   fillPreviewSelect();
   renderTagSummary();
@@ -709,21 +721,23 @@ function rowsChanged() {
 function renderPeople() {
   const rows = state.peopleRows;
   if (!rows.length || rows[rows.length - 1].name || rows[rows.length - 1].tags) rows.push({ name: '', tags: '' });
-  $('peopleRows').innerHTML = rows.map((r, i) => `<tr>
+  $('peopleRows').innerHTML = rows.map((r, i) => `<tr${r.paused ? ' class="paused"' : ''}>
       <td class="num">${i + 1}</td>
       <td><input id="p-name-${i}" data-r="${i}" data-c="name" value="${esc(r.name)}" placeholder="${i === 0 ? '예: 홍길동' : ''}" autocomplete="off" aria-label="${i + 1}번 이름"></td>
       <td><input id="p-tags-${i}" data-r="${i}" data-c="tags" value="${esc(r.tags)}" placeholder="${i === 0 ? '예: 탁구, 남, 2부' : ''}" autocomplete="off" aria-label="${i + 1}번 꼬리표"></td>
+      <td class="pause">${r.name ? `<label title="잠시 빼기: 인쇄·근무시간·반별 인원에서 빠져요"><input type="checkbox" id="p-paused-${i}" data-r="${i}" data-c="paused"${r.paused ? ' checked' : ''}> 쉼</label>` : ''}</td>
       <td>${r.name || r.tags ? `<button type="button" class="iconbtn small" data-del="${i}" aria-label="${i + 1}번 줄 지우기">✕</button>` : ''}</td>
     </tr>`).join('');
   renderTagSummary();
 }
 
 function renderTagSummary() {
-  const people = state.people;
+  const people = activePeople();
   const parts = usedTags(people).map((t) => `<span class="sum"><b>${esc(t)}</b> ${people.filter((p) => p.tags.includes(t)).length}명</span>`);
   const none = people.filter((p) => !p.tags.length).length;
   if (none) parts.push(`<span class="sum muted">꼬리표 없음 ${none}명</span>`);
-  $('peopleCount').textContent = `모두 ${people.length}명`;
+  const paused = state.people.length - people.length;
+  $('peopleCount').textContent = `모두 ${state.people.length}명${paused ? ` (쉼 ${paused}명)` : ''}`;
   $('tagSummary').innerHTML = parts.join('');
 }
 
@@ -862,9 +876,10 @@ function renderGroupNotes() {
   for (const t of usedTags(state.people)) {
     if (!seen.has(t)) notes.push(`참여자 꼬리표 「${t}」는 어느 나누기에도 없어요. [${t}] 줄은 「${t}」인 사람만 받아요.`);
   }
+  const active = activePeople();
   const counts = state.tagGroups.map((g) => {
-    const parts = g.tags.map((t) => `${esc(t)} ${state.people.filter((p) => p.tags.includes(t)).length}명`);
-    const none = state.people.filter((p) => !g.tags.some((t) => p.tags.includes(t))).length;
+    const parts = g.tags.map((t) => `${esc(t)} ${active.filter((p) => p.tags.includes(t)).length}명`);
+    const none = active.filter((p) => !g.tags.some((t) => p.tags.includes(t))).length;
     if (none) parts.push(`<span class="muted">안 정해짐 ${none}명</span>`);
     return `<li><b>${esc(g.name || '이름 없음')}</b> · ${parts.join(' · ')}</li>`;
   });
@@ -975,10 +990,10 @@ function setView(view) {
   document.body.dataset.view = view;
   $('loginView').hidden = view !== 'login';
   $('peopleView').hidden = view !== 'people';
-  $('printPanel').hidden = true;
+  PANELS.forEach((pid) => { $(pid).hidden = true; });
   $('monthPicker').hidden = true;
   if (view === 'people') {
-    state.peopleRows = state.people.map((p) => ({ name: p.name, tags: p.tags.join(', ') }));
+    state.peopleRows = state.people.map(personToRow);
     renderPeople();
     setTab(state.tab);
     $('notice').hidden = true;
@@ -1000,15 +1015,39 @@ function showLogin() {
 
 /* ===== 개인별 인쇄 ===== */
 function openPrintPanel() {
-  const p = $('printPanel');
-  if (!p.hidden) { p.hidden = true; return; }
+  if (!togglePanel('printPanel')) return;
   stopEdit();
-  const n = state.people.length;
-  $('printSummary').innerHTML = n
-    ? `<b>${n}명</b>의 ${state.m}월 계획표를 A4 가로로 한 번에 인쇄해요.`
-    : '참여자가 아직 없어요. <b>참여자</b>에서 먼저 이름을 넣어 주세요.';
-  $('doPrint').disabled = !n && !$('includeFull').checked;
-  p.hidden = false;
+  const active = activePeople();
+  const sel = $('printWho');
+  const keep = sel.value;
+  sel.innerHTML = `<option value="*">전원 (${active.length}명)</option>` +
+    usedTags(active).map((t) => `<option value="t:${esc(t)}">${esc(t)}만 (${active.filter((p) => p.tags.includes(t)).length}명)</option>`).join('') +
+    '<option value="pick">직접 고르기</option>';
+  sel.value = [...sel.options].some((o) => o.value === keep) ? keep : '*';
+  $('printPick').innerHTML = active.length
+    ? `<div class="pp-acts"><button type="button" class="linkbtn" data-pick="all">모두 선택</button><button type="button" class="linkbtn" data-pick="none">모두 해제</button></div>` +
+      active.map((p, i) => `<label><input type="checkbox" id="pp-${i}" value="${esc(p.name)}" checked> ${esc(p.name)}</label>`).join('')
+    : '';
+  updatePrintSummary();
+}
+function printTargets() {
+  const active = activePeople();
+  const v = $('printWho').value;
+  if (v === 'pick') {
+    const names = new Set([...$('printPick').querySelectorAll('input:checked')].map((c) => c.value));
+    return active.filter((p) => names.has(p.name));
+  }
+  if (v.startsWith('t:')) return active.filter((p) => p.tags.includes(v.slice(2)));
+  return active;
+}
+function updatePrintSummary() {
+  $('printPick').hidden = $('printWho').value !== 'pick';
+  const n = printTargets().length;
+  const full = $('includeFull').checked;
+  $('printSummary').innerHTML = state.people.length
+    ? `<b>${n}명</b>${full ? ' + 전체 1장' : ''}, ${state.m}월 계획표를 A4 가로로 인쇄해요.`
+    : '참여자가 아직 없어요. <b>참여자·설정</b>에서 먼저 이름을 넣어 주세요.';
+  $('doPrint').disabled = !n && !full;
 }
 
 function doPrint() {
@@ -1017,7 +1056,7 @@ function doPrint() {
   const ym = curKey();
   let html = '';
   if ($('includeFull').checked) html += `<article class="sheet">${sheetHTML(ym, mo, 'full', null)}</article>`;
-  for (const p of state.people) html += `<article class="sheet">${sheetHTML(ym, mo, 'person', p)}</article>`;
+  for (const p of printTargets()) html += `<article class="sheet">${sheetHTML(ym, mo, 'person', p)}</article>`;
   if (!html) return;
   const area = $('printArea');
   area.innerHTML = html;
@@ -1027,6 +1066,87 @@ function doPrint() {
   $('printPanel').hidden = true;
   setTimeout(() => window.print(), 50);
 }
+
+/* ===== 위쪽 작은 창 (인쇄·기록·근무시간): 하나만 열림 ===== */
+const PANELS = ['printPanel', 'historyPanel', 'hoursPanel'];
+function togglePanel(id) {
+  const el = $(id);
+  const open = el.hidden;
+  PANELS.forEach((pid) => { $(pid).hidden = true; });
+  $('monthPicker').hidden = true;
+  el.hidden = !open;
+  return open;
+}
+
+/* ===== 기록 (예전 저장본으로 되돌리기) ===== */
+function fmtWhen(ms) {
+  const d = new Date(ms);
+  const h = d.getHours();
+  return `${d.getMonth() + 1}월 ${d.getDate()}일(${'일월화수목금토'[d.getDay()]}) ${h < 12 ? '오전' : '오후'} ${(h % 12) || 12}:${pad(d.getMinutes())}`;
+}
+async function openHistory() {
+  if (!togglePanel('historyPanel')) return;
+  stopEdit();
+  const ym = curKey();
+  const list = $('historyList');
+  list.innerHTML = '<li class="muted">불러오는 중…</li>';
+  try {
+    const { data } = await api(`/months/${ym}/versions`);
+    if (ym !== curKey()) return;
+    list.innerHTML = data.versions.length
+      ? data.versions.map((v) => `<li><span>${fmtWhen(v.savedAt)}<small class="muted"> · 일정 ${v.filledDays}일</small></span>
+          <button type="button" class="btn" data-restore="${v.id}" data-when="${esc(fmtWhen(v.savedAt))}">이 상태로</button></li>`).join('')
+      : '<li class="muted">아직 기록이 없어요. 고치기 시작하면 10분마다 한 번씩 그 전 상태가 남아요.</li>';
+  } catch (e) {
+    list.innerHTML = `<li class="muted">${esc(e.message)}</li>`;
+  }
+}
+async function restoreHistory(id, when) {
+  const ym = curKey();
+  const e = state.months[ym];
+  stopEdit();
+  try {
+    if (e && (e.pending || e.saving)) await saveMonth(ym); // 지금 고친 것부터 저장 → 기록에 남음
+    const { data } = await api(`/months/${ym}/versions/${id}/restore`, { method: 'POST' });
+    state.months[ym] = { data: normalizeMonth(data.data, state.m), updatedAt: data.updatedAt };
+    $('historyPanel').hidden = true;
+    render();
+    toast(`${when} 상태로 되돌렸어요. 바로 전 상태도 기록에 남아 있어요.`);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/* ===== 근무시간 ===== */
+function openHours() {
+  if (!togglePanel('hoursPanel')) return;
+  stopEdit();
+  renderHours();
+}
+function hoursRows() {
+  const mo = cur();
+  return activePeople().map((p) => ({ name: p.name, ...workSummary(mo, p) }));
+}
+function renderHours() {
+  const rows = hoursRows();
+  $('hoursTitle').textContent = `${state.m}월 근무시간`;
+  const noTime = rows.reduce((m, r) => Math.max(m, r.noTime), 0);
+  $('hoursBody').innerHTML = rows.length
+    ? rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="n">${r.days}일</td><td class="n">${formatHours(r.hours)}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="muted">참여자가 없어요.</td></tr>';
+  $('hoursNote').innerHTML = '「출근」이나 「근무」가 들어간 줄의 시간(예: 출근(9시~12시))을 그 사람이 받는 줄만 더해요.' +
+    (noTime ? `<br><span class="warnline">시간이 안 적힌 출근 줄이 있는 날은 빠져 있어요 (많게는 ${noTime}일).</span>` : '');
+}
+async function copyHours() {
+  const text = '이름\t근무일\t근무시간\r\n' + hoursRows().map((r) => `${r.name}\t${r.days}\t${r.hours}`).join('\r\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('복사했어요. 엑셀에 붙여넣으세요.');
+  } catch (e) {
+    toast('복사하지 못했어요. 표를 끌어서 선택한 뒤 Ctrl+C로 복사해 주세요.');
+  }
+}
+
 function afterPrint() {
   document.body.classList.remove('printing');
   $('printArea').innerHTML = '';
@@ -1146,7 +1266,27 @@ function bind() {
   $('printBtn').addEventListener('click', openPrintPanel);
   $('holidayWarn').addEventListener('click', () => toast(state.holidayWarn));
   $('closePrint').addEventListener('click', () => { $('printPanel').hidden = true; });
-  $('includeFull').addEventListener('change', () => { $('doPrint').disabled = !state.people.length && !$('includeFull').checked; });
+  $('includeFull').addEventListener('change', updatePrintSummary);
+  $('printWho').addEventListener('change', updatePrintSummary);
+  $('printPick').addEventListener('change', updatePrintSummary);
+  $('printPick').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pick]');
+    if (!b) return;
+    $('printPick').querySelectorAll('input').forEach((c) => { c.checked = b.dataset.pick === 'all'; });
+    updatePrintSummary();
+  });
+  $('historyBtn').addEventListener('click', openHistory);
+  $('historyList').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-restore]');
+    if (b) restoreHistory(+b.dataset.restore, b.dataset.when);
+  });
+  $('hoursBtn').addEventListener('click', openHours);
+  $('copyHours').addEventListener('click', copyHours);
+  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { $(b.dataset.close).hidden = true; }));
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.popwrap')) return;
+    PANELS.forEach((pid) => { $(pid).hidden = true; });
+  });
   $('doPrint').addEventListener('click', doPrint);
   window.addEventListener('afterprint', afterPrint);
 
@@ -1218,7 +1358,8 @@ function bind() {
     const inp = e.target;
     if (!inp.dataset.r) return;
     const r = +inp.dataset.r;
-    state.peopleRows[r][inp.dataset.c] = inp.value;
+    state.peopleRows[r][inp.dataset.c] = inp.type === 'checkbox' ? inp.checked : inp.value;
+    if (inp.type === 'checkbox') { inp.closest('tr').classList.toggle('paused', inp.checked); rowsChanged(); return; }
     // 마지막 빈 줄에 쓰기 시작하면 줄을 하나 더 만들어 둠
     if (r === state.peopleRows.length - 1) {
       const id = inp.id;
@@ -1294,7 +1435,7 @@ function bind() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && state.pick) cancelPick();
-    if (e.key === 'Escape') { $('printPanel').hidden = true; $('monthPicker').hidden = true; }
+    if (e.key === 'Escape') { PANELS.forEach((pid) => { $(pid).hidden = true; }); $('monthPicker').hidden = true; }
   });
 
   // 사용법: 닫으면 상단 [사용법] 버튼으로 다시 열 수 있음

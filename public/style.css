@@ -417,6 +417,7 @@ body[data-view="people"] .desk,
 body[data-view="people"] .monthnav,
 body[data-view="people"] .previewpick,
 body[data-view="people"] .printwrap,
+body[data-view="people"] .popwrap,
 body[data-view="people"] #helpBtn,
 body[data-view="people"] #peopleBtn { display: none !important; }
 body.loading .sheet { opacity: .45; transition: opacity .2s; }
@@ -437,7 +438,22 @@ body.loading .sheet { opacity: .45; transition: opacity .2s; }
   font-size: 12px;
 }
 
+/* 꼬리표 딱지 (고치는 화면, 인쇄에는 안 나옴) */
+.ln .tgc {
+  display: inline-block;
+  font-size: .78em;
+  line-height: 1.25;
+  font-weight: 700;
+  color: #3b4452;
+  background: rgba(255, 255, 255, .7);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-right: 3px;
+  vertical-align: .08em;
+}
+
 /* 개인별 인쇄 창 */
+.popwrap { position: relative; }
 .printwrap { position: relative; }
 .printpanel {
   position: absolute;
@@ -460,6 +476,29 @@ body.loading .sheet { opacity: .45; transition: opacity .2s; }
 .printpanel .check { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
 .printpanel small { color: var(--ui-muted); }
 .printpanel .acts { display: flex; justify-content: flex-end; gap: 6px; }
+.printpanel .field { display: flex; flex-direction: column; gap: 4px; font-weight: 500; }
+.printpanel select {
+  padding: 6px 8px; border: 1px solid var(--bar-line); border-radius: 6px; background: var(--bar); color: var(--ui-text); font: inherit;
+}
+.printpick {
+  max-height: 220px; overflow-y: auto; border: 1px solid var(--bar-line); border-radius: 6px; padding: 6px 8px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px;
+}
+.printpick label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.pp-acts { grid-column: 1 / -1; display: flex; gap: 12px; padding-bottom: 4px; border-bottom: 1px dashed var(--bar-line); margin-bottom: 2px; }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font: inherit; font-size: 12.5px; }
+.pp-head { display: flex; align-items: center; justify-content: space-between; }
+.small { font-size: 12.5px; }
+.hourspanel, .historypanel { width: min(380px, calc(100vw - 32px)); }
+.hours-wrap { max-height: 50vh; overflow-y: auto; border: 1px solid var(--bar-line); border-radius: 6px; }
+.hours { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.hours th { position: sticky; top: 0; background: var(--bar); text-align: left; font-weight: 500; color: var(--ui-muted); font-size: 12.5px; padding: 5px 8px; border-bottom: 1px solid var(--bar-line); }
+.hours td { padding: 4px 8px; border-bottom: 1px solid var(--bar-line); }
+.hours .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.warnline { color: #8a5a00; }
+.historylist { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; }
+.historylist li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--bar-line); font-size: 13.5px; }
+.historylist .btn { padding: 4px 10px; font-size: 12.5px; white-space: nowrap; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
 /* 인쇄용 종이 묶음: 화면에서는 안 보이는 곳에 두고 글자 크기만 맞춤 */
@@ -522,6 +561,9 @@ label.btn { display: inline-block; }
 .ptable td { padding: 0; border-bottom: 1px solid var(--bar-line); }
 .ptable td.num, .ptable th.num { width: 2.6em; text-align: right; padding-right: 10px; color: var(--ui-muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
 .ptable td:last-child { width: 34px; text-align: center; }
+.ptable .pause { width: 5.5em; text-align: center; font-size: 12.5px; color: var(--ui-muted); white-space: nowrap; }
+.ptable .pause label { cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.ptable tr.paused input:not([type="checkbox"]) { color: var(--ui-muted); text-decoration: line-through; }
 .ptable input {
   width: 100%;
   border: 0;

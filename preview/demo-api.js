@@ -44,6 +44,7 @@
     people: { list: people, updatedAt: 1 },
     custom: [],
     tagGroups: null,
+    versions: {},
   };
 
   const reply = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -57,6 +58,15 @@
     const path = url.slice(4);
     let m;
     if (path === '/months') return reply({ months: Object.keys(db.months).sort() });
+    if ((m = path.match(/^\/months\/(\d{4}-\d{2})\/versions$/))) {
+      return reply({ versions: (db.versions[m[1]] || []).map((v, i) => ({ id: i, savedAt: v.savedAt, filledDays: Object.keys(v.data.days || {}).length })).reverse() });
+    }
+    if ((m = path.match(/^\/months\/(\d{4}-\d{2})\/versions\/(\d+)\/restore$/))) {
+      const v = db.versions[m[1]][+m[2]];
+      (db.versions[m[1]] = db.versions[m[1]] || []).push({ data: db.months[m[1]].data, savedAt: Date.now() });
+      db.months[m[1]] = { data: JSON.parse(JSON.stringify(v.data)), updatedAt: Date.now() };
+      return reply({ ok: true, ...db.months[m[1]] });
+    }
     if (path === '/settings') {
       if (method === 'GET') return reply({ tagGroups: db.tagGroups });
       db.tagGroups = body.tagGroups;
@@ -64,6 +74,9 @@
     }
     if ((m = path.match(/^\/months\/(\d{4}-\d{2})$/))) {
       if (method === 'GET') return reply(db.months[m[1]] ? db.months[m[1]] : { data: null, updatedAt: null });
+      const prevM = db.months[m[1]];
+      const vs = (db.versions[m[1]] = db.versions[m[1]] || []);
+      if (prevM && (!vs.length || Date.now() - vs[vs.length - 1].savedAt > 600000)) vs.push({ data: prevM.data, savedAt: Date.now() });
       db.months[m[1]] = { data: JSON.parse(JSON.stringify(body.data)), updatedAt: Date.now() };
       return reply({ ok: true, updatedAt: db.months[m[1]].updatedAt });
     }

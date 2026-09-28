@@ -162,6 +162,44 @@ function makeMonth(y, m, prev, isHoliday, from) {
   return month;
 }
 
+/* ===== 근무시간 =====
+   '출근'이나 '근무'가 들어간 줄에서 시간 범위를 찾아 더한다.
+   9시~12시 · 9시30분~11시30분 · 9시반~11시 · 13:00~15:30 · 11시~1시(=2시간)
+   공휴일 등으로 비운 날은 0, 그 사람에게 안 가는 줄([배드민턴] 등)은 빼고 셈 */
+const TIME = String.raw`(\d{1,2})\s*(?:시(?:\s*(\d{1,2})\s*분|\s*(반))?|:(\d{2}))`;
+const TIME_RANGE = new RegExp(TIME + String.raw`\s*[~∼〜\-–]\s*` + TIME, 'g');
+const toHour = (h, m, half, mm) => +h + (m ? +m / 60 : 0) + (half ? 0.5 : 0) + (mm ? +mm / 60 : 0);
+
+function workHoursOfLine(line) {
+  if (!/출근|근무/.test(line)) return 0;
+  let total = 0;
+  for (const g of line.matchAll(TIME_RANGE)) {
+    const start = toHour(g[1], g[2], g[3], g[4]);
+    let end = toHour(g[5], g[6], g[7], g[8]);
+    if (end <= start) end += 12; // 11시~1시 → 오후 1시
+    if (end - start <= 12) total += end - start;
+  }
+  return total;
+}
+
+// 한 사람의 한 달 근무: { days, hours, noTime: 시간이 안 적힌 출근 날 수 }
+function workSummary(month, person) {
+  let days = 0, hours = 0, noTime = 0;
+  for (const text of Object.values(month.days || {})) {
+    const lines = textFor(text, person).split('\n');
+    const h = lines.reduce((sum, l) => sum + workHoursOfLine(l), 0);
+    if (h > 0) { days++; hours += h; } else if (lines.some((l) => /출근|근무/.test(l))) noTime++;
+  }
+  return { days, hours: Math.round(hours * 100) / 100, noTime };
+}
+
+// 36.5 → '36시간 30분'
+function formatHours(h) {
+  const whole = Math.floor(h + 1e-9);
+  const min = Math.round((h - whole) * 60);
+  return min ? `${whole}시간 ${min}분` : `${whole}시간`;
+}
+
 // 새로 공휴일이 된 날의 일정 비우기
 // holidays: 이 달의 공휴일 날짜(일) 목록. 이미 비운 적 있는 날(holidaysApplied)은 건드리지 않는다
 // → 공휴일에 일부러 다시 적은 일정은 그대로 남음
@@ -201,6 +239,6 @@ function normalizeMonth(data, m) {
 if (typeof module !== 'undefined') {
   module.exports = {
     DEFAULT_TAG_GROUPS, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
-    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays,
+    parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours,
   };
 }

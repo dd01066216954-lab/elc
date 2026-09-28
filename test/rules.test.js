@@ -123,3 +123,31 @@ test('새 달: 주말 공휴일도 비우고, 공휴일은 이미 비운 날로 
   assert.strictEqual(oct.days[10], '9월 첫째 토');
   assert.deepStrictEqual(oct.holidaysApplied, ['3', '5', '9']);
 });
+
+test('근무시간: 줄 하나', () => {
+  assert.strictEqual(R.workHoursOfLine('출근(9시~12시)'), 3);
+  assert.strictEqual(R.workHoursOfLine('출근(9시~11시)'), 2);
+  assert.strictEqual(R.workHoursOfLine('출근 9시30분~11시30분'), 2);
+  assert.strictEqual(R.workHoursOfLine('근무 9시반~11시'), 1.5);
+  assert.strictEqual(R.workHoursOfLine('→근무 13:00~15:30'), 2.5);
+  assert.strictEqual(R.workHoursOfLine('출근(11시~1시)'), 2);
+  assert.strictEqual(R.workHoursOfLine('출근(9시~12시) 2층'), 3, '뒤 숫자를 분으로 잘못 읽지 않음');
+  assert.strictEqual(R.workHoursOfLine('출근(9시~12시), 근무(13시~15시)'), 5);
+  assert.strictEqual(R.workHoursOfLine('*9시~9시30분: 명상'), 0, '출근·근무 없는 줄은 안 셈');
+  assert.strictEqual(R.workHoursOfLine('출근'), 0);
+});
+
+test('근무시간: 사람마다 받는 줄만, 한 달 합계', () => {
+  const mo = { days: {
+    1: '출근(9시~12시)\n*체육',
+    2: '출근(9시~11시)\n*자립아카데미',
+    5: '[1부] 근무 9시~10시\n[2부] 근무 10시~12시',
+    6: '출근\n*영화',
+    9: '',
+  } };
+  assert.deepStrictEqual(R.workSummary(mo, { tags: ['1부'] }), { days: 3, hours: 6, noTime: 1 });
+  assert.deepStrictEqual(R.workSummary(mo, { tags: ['2부'] }), { days: 3, hours: 7, noTime: 1 });
+  assert.deepStrictEqual(R.workSummary(mo, { tags: [] }), { days: 3, hours: 8, noTime: 1 }); // 부 안 정해짐 → 둘 다
+  assert.strictEqual(R.formatHours(36.5), '36시간 30분');
+  assert.strictEqual(R.formatHours(12), '12시간');
+});
