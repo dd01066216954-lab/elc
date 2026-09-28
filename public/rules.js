@@ -81,15 +81,14 @@ function togglePlace(text, snip, after) {
 function replaceActivities(text, snip) {
   return [...cellLines(text).filter(isWorkLine), ...snipLines(snip)].join('\n');
 }
-// 한 줄의 글자색 바꾸기 (꼬리표는 그대로)
-//   빨강: 맨 앞에 '!'   파랑: '*'나 '→'로 시작(없으면 '*' 붙임)   검정: 앞의 ! * → 떼기
+// 한 줄의 글자색 바꾸기 (꼬리표·* → 같은 기호는 그대로)
+//   빨강: 맨 앞에 '!'   파랑: 맨 앞에 '^'   검정: 표시 없음
 function recolorLine(line, color) {
   const p = parseLine(line);
   let body = p.rest.trimStart();
-  if (body.startsWith('!')) body = body.slice(1).trimStart();
-  if (color === 'black') body = body.replace(/^[*→]\s*/, '');
-  if (color === 'blue' && !/^[*→]/.test(body)) body = '*' + body;
+  if (p.color) body = body.slice(1).trimStart();
   if (color === 'red') body = '!' + body;
+  if (color === 'blue') body = '^' + body;
   return p.head + body;
 }
 const lineColorName = (line) => parseLine(line).color || 'black';
@@ -113,7 +112,7 @@ function splitSnippets(list) {
 // 칸 내용으로 버튼 이름 짐작: '*영화 감상' → '영화 감상'
 function guessSnippetName(text) {
   const lines = String(text || '').split('\n').map(parseLine).filter((p) => printedText(p).trim());
-  const pick = lines.find((p) => p.color && !/출근|근무/.test(p.rest)) || lines[0];
+  const pick = lines.find((p) => !/출근|근무/.test(p.rest)) || lines[0];
   if (!pick) return '새 일정';
   return printedText(pick).replace(/^[*→]\s*/, '').replace(/\s*\(.*$/, '').trim().slice(0, 12) || '새 일정';
 }
@@ -144,15 +143,16 @@ function parseLine(raw) {
   const rest = m ? raw.slice(m[0].length) : raw;
   const t = rest.trimStart();
   let color = '';
+  // 글자색 표시: 맨 앞 '!' = 빨강, '^' = 파랑 (버튼이 넣고, 인쇄 때 지움). 없으면 검정
   if (t.startsWith('!')) color = 'red';
-  else if (t.startsWith('*') || t.startsWith('→')) color = 'blue';
+  else if (t.startsWith('^')) color = 'blue';
   return { raw, tags, head, rest, color };
 }
 
-// 인쇄용 글자: 꼬리표와 맨 앞 '!' 제거
+// 인쇄용 글자: 꼬리표와 맨 앞 색 표시(! ^) 제거
 function printedText(p) {
   let t = p.rest.trimStart();
-  if (p.color === 'red') t = t.slice(1).trimStart();
+  if (p.color) t = t.slice(1).trimStart();
   return t;
 }
 
@@ -232,6 +232,7 @@ function makeMonth(y, m, prev, isHoliday, from) {
     notes: prev ? prev.notes : DEFAULT_MONTH.notes,
     days: {},
     holidaysApplied: [], // 공휴일이라 일정을 비운 날 (다시 비우지 않도록 기억)
+    colorVersion: COLOR_VERSION,
   };
   for (let d = 1; d <= daysIn(y, m); d++) if (isHoliday(y, m, d)) month.holidaysApplied.push(String(d));
   if (!prev) return month;
@@ -374,24 +375,40 @@ function clearHolidayDays(month, holidayDays) {
   return { changed, cleared };
 }
 
+// 예전 규칙(*, → 로 시작하면 파랑)으로 쓴 줄을 새 규칙으로 — 보이는 색은 그대로
+function upgradeColors(text) {
+  return String(text || '').split('\n').map((line) => {
+    const p = parseLine(line);
+    const t = p.rest.trimStart();
+    return !p.color && /^[*→]/.test(t) ? p.head + '^' + t : line;
+  }).join('\n');
+}
+const COLOR_VERSION = 2;
+
 // 저장된 데이터 모양 맞추기
 function normalizeMonth(data, m) {
   const d = data || {};
   const headers = Array.isArray(d.headers) ? d.headers.slice(0, 7) : [];
   while (headers.length < 7) headers.push(DEFAULT_MONTH.headers[headers.length]);
-  return {
+  const out = {
     title: typeof d.title === 'string' ? d.title : `${m}월 일자리 근무 일정표 및 수업계획표`,
     guide: typeof d.guide === 'string' ? d.guide : DEFAULT_MONTH.guide,
     headers: headers.map(String),
     notes: typeof d.notes === 'string' ? d.notes : '',
     days: d.days && typeof d.days === 'object' ? { ...d.days } : {},
     holidaysApplied: Array.isArray(d.holidaysApplied) ? d.holidaysApplied.map(String) : [],
+    colorVersion: COLOR_VERSION,
   };
+  if (d.colorVersion !== COLOR_VERSION) {
+    for (const k of Object.keys(out.days)) out.days[k] = upgradeColors(out.days[k]);
+    out.notes = upgradeColors(out.notes);
+  }
+  return out;
 }
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, SNIPPETS_VERSION, lineColorName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
+    DEFAULT_TAG_GROUPS, DEFAULT_SNIPPETS, guessSnippetName, isWorkLine, applyWork, hasBlock, toggleActivity, togglePlace, replaceActivities, splitSnippets, recolorLine, upgradeColors, SNIPPETS_VERSION, lineColorName, setTagGroups, getTagGroups: () => TAG_GROUPS, pad, ymKey, daysIn, weekday, shiftMonth,
     parseLine, printedText, lineFor, textFor, splitTags, usedTags, makeMonth, normalizeMonth, parsePeopleText, clearHolidayDays, workHoursOfLine, workSummary, formatHours, dayHoursRange, lineIndex, suggestLines, countMatches,
   };
 }

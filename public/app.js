@@ -93,9 +93,9 @@ function linesHTML(text, mode, person) {
     if (mode === 'raw' || mode === 'edit') {
       const bg = p.tags.length ? ` tagged" style="background:${tagColor(p.tags[0])}` : '';
       let body;
-      if (!p.head) body = esc(p.rest);
+      if (!p.head) body = mode === 'raw' ? esc(p.rest) : esc(printedText(p));
       else if (mode === 'raw') body = `<span class="tg">${esc(p.head)}</span>${esc(p.rest)}`; // 입력칸과 글자 위치가 겹쳐야 함
-      else body = p.tags.map((t) => `<span class="tgc">${esc(t)}</span>`).join('') + esc(p.rest.trimStart()); // 짧게
+      else body = p.tags.map((t) => `<span class="tgc">${esc(t)}</span>`).join('') + esc(printedText(p)); // 짧게, 색 표시(! ^) 숨김
       out.push(`<div class="ln ${p.color}${bg}">${body || '<br>'}</div>`);
     } else if (mode === 'full') {
       const t = printedText(p);
@@ -108,7 +108,8 @@ function linesHTML(text, mode, person) {
   }
   return out.join('');
 }
-const lineColor = (text) => parseLine(text || '').color;
+// 시간 안내 줄은 한 줄짜리 글상자라 색 표시를 못 넣음 → 예전처럼 * 나 → 로 시작하면 파랑
+const lineColor = (text) => (/^\s*[*→]/.test(text || '') ? 'blue' : '');
 
 /* ===== 종이 한 장 그리기 ===== */
 function sheetHTML(ym, mo, mode, person) {
@@ -152,7 +153,8 @@ function sheetHTML(ym, mo, mode, person) {
     if ((w === 0 || w === 6) && !shown.trim()) cls.push('hatch');
     if (hn) cls.push('holiday');
     if (edit) cls.push('editable');
-    html += `<div class="${cls.join(' ')}" data-day="${d}">
+    const drag = edit && (mo.days[d] || '').trim() ? ' draggable="true"' : '';
+    html += `<div class="${cls.join(' ')}" data-day="${d}"${drag}>
         <div class="cell-head"><span class="dnum">${d}</span>${hn ? `<span class="hname">${esc(hn)}</span>` : ''}${edit ? `<span class="wh">${dayHoursLabel(mo.days[d])}</span>` : ''}</div>
         <div class="cell-body"><div class="lines">${linesHTML(mo.days[d], mode, person)}</div></div>
       </div>`;
@@ -541,6 +543,7 @@ function startEdit(box, day) {
   fit(box);
   const host = day ? box.closest('.cell') : box;
   host.classList.add('editing');
+  host.draggable = false;
   state.editing = { box, ta, day, host };
 
   ta.addEventListener('input', () => {
@@ -583,6 +586,7 @@ function stopEdit() {
   fit(ed.box);
   ed.ta.remove();
   ed.host.classList.remove('editing');
+  if (ed.day) ed.host.draggable = !!ed.ta.value.trim();
   hideTools();
   hideSuggest();
   renderSnipbar();
@@ -1005,7 +1009,7 @@ function renderSnipbar() {
     const cls = ['snip', x.kind];
     if (state.stamp && state.stamp.i === i) cls.push('on');
     if (ed && hasBlock(ed.ta.value, x)) cls.push('in');
-    return `<button type="button" class="${cls.join(' ')}" data-snip="${i}" title="${esc(x.text)}">${esc(x.name || '(이름 없음)')}</button>`;
+    return `<button type="button" class="${cls.join(' ')}" data-snip="${i}" draggable="true" title="${esc(x.text)}">${esc(x.name || '(이름 없음)')}</button>`;
   };
   const list = (kind) => state.snippets.map((x, i) => (x.kind === kind ? chip(x, i) : '')).join('');
   $('snipWork').innerHTML = list('work') || '<span class="muted small">없음</span>';
@@ -1013,7 +1017,9 @@ function renderSnipbar() {
   $('snipPlace').innerHTML = list('place') || '<span class="muted small">없음</span>';
   $('snipbar').classList.toggle('editing', !!ed);
   let on = '';
-  if (ed) {
+  const edAny = state.editing;
+  if (edAny) {
+    const ed = edAny;
     const lines = ed.ta.value.split('\n');
     const colors = [...new Set(colorTargets(ed).map((i) => lineColorName(lines[i])))];
     if (colors.length === 1) on = colors[0];
@@ -1031,12 +1037,14 @@ function colorTargets(ed) {
 }
 function applyColor(color) {
   const ed = state.editing;
-  if (!ed || !ed.day) { toast('먼저 날짜 칸을 누르세요. 방금 넣은 활동이나 커서가 있는 줄의 색을 바꿔요.'); return; }
+  if (!ed) { toast('먼저 날짜 칸을 누르세요. 방금 넣은 활동이나 커서가 있는 줄의 색을 바꿔요.'); return; }
   const ta = ed.ta;
   const lines = ta.value.split('\n');
   const idx = colorTargets(ed);
   if (!idx.length) { toast('색을 바꿀 줄에 커서를 두세요.'); return; }
-  idx.forEach((i) => { lines[i] = recolorLine(lines[i], color); });
+  // 이미 그 색이면 검정으로 (다시 누르면 풀림)
+  const next = idx.every((i) => lineColorName(lines[i]) === color) ? 'black' : color;
+  idx.forEach((i) => { lines[i] = recolorLine(lines[i], next); });
   if (ed.lastBlock) ed.lastBlock = idx.map((i) => lines[i]);
   const caret = ta.selectionStart;
   ta.value = lines.join('\n');
@@ -1143,6 +1151,95 @@ function saveCellAsSnippet(day) {
   if (!added.length) { toast('이미 같은 버튼이 있어요.'); return; }
   markSettingsDirty();
   toast(`${added.join(', ')} 버튼으로 저장했어요. 이름은 「고치기」에서 바꿀 수 있어요.`);
+}
+
+/* ===== 끌어다 놓기: 날짜 칸 옮기기(바꾸기, Ctrl = 복사) · 버튼을 칸에 넣기 ===== */
+const DRAG_DAY = 'application/x-day';
+const DRAG_SNIP = 'application/x-snip';
+function dropSnippet(i, d) {
+  const x = state.snippets[i];
+  if (!x) return;
+  const mo = cur();
+  const old = mo.days[d] || '';
+  if (hasBlock(old, x)) { toast(`${d}일에는 이미 「${x.name}」가 있어요.`); return; }
+  const next = x.kind === 'work' ? applyWork(old, x) : x.kind === 'place' ? togglePlace(old, x, null) : toggleActivity(old, x);
+  mo.days[d] = next;
+  render();
+  markDirty();
+  document.querySelector(`#sheet .cell[data-day="${d}"]`)?.classList.add('flash');
+  toast(`${d}일에 「${x.name}」를 넣었어요.`, { label: '되돌리기', fn: () => { if (old) mo.days[d] = old; else delete mo.days[d]; render(); markDirty(); } });
+}
+function dropDay(from, to, copy) {
+  if (from === to) return;
+  const mo = cur();
+  const before = { ...mo.days };
+  const a = mo.days[from];
+  const b = mo.days[to];
+  let msg;
+  if (copy) {
+    mo.days[to] = a;
+    msg = `${from}일 일정을 ${to}일에 복사했어요.`;
+  } else if (b && b.trim()) {
+    mo.days[to] = a;
+    mo.days[from] = b;
+    msg = `${from}일과 ${to}일 일정을 서로 바꿨어요.`;
+  } else {
+    mo.days[to] = a;
+    delete mo.days[from];
+    msg = `${from}일 일정을 ${to}일로 옮겼어요.`;
+  }
+  render();
+  markDirty();
+  [from, to].forEach((d) => document.querySelector(`#sheet .cell[data-day="${d}"]`)?.classList.add('flash'));
+  toast(msg, { label: '되돌리기', fn: () => { mo.days = before; render(); markDirty(); } });
+}
+function clearDropMarks() {
+  document.querySelectorAll('#sheet .cell.dropping, #sheet .cell.dragging').forEach((c) => c.classList.remove('dropping', 'dragging'));
+}
+function bindDragDrop() {
+  const sheet = $('sheet');
+  sheet.addEventListener('dragstart', (e) => {
+    const cell = e.target.closest && e.target.closest('.cell.in[draggable="true"]');
+    if (!cell || previewPerson() || state.editing) { if (cell) e.preventDefault(); return; }
+    e.dataTransfer.setData(DRAG_DAY, cell.dataset.day);
+    e.dataTransfer.setData('text/plain', cur().days[cell.dataset.day] || '');
+    e.dataTransfer.effectAllowed = 'copyMove';
+    cell.classList.add('dragging');
+    hideTools();
+  });
+  sheet.addEventListener('dragover', (e) => {
+    const cell = e.target.closest('.cell.in');
+    const types = [...e.dataTransfer.types];
+    if (!cell || previewPerson() || !(types.includes(DRAG_DAY) || types.includes(DRAG_SNIP))) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = types.includes(DRAG_SNIP) || e.ctrlKey || e.altKey || e.metaKey ? 'copy' : 'move';
+    document.querySelectorAll('#sheet .cell.dropping').forEach((c) => { if (c !== cell) c.classList.remove('dropping'); });
+    cell.classList.add('dropping');
+  });
+  sheet.addEventListener('dragleave', (e) => {
+    const cell = e.target.closest('.cell.in');
+    if (cell && !cell.contains(e.relatedTarget)) cell.classList.remove('dropping');
+  });
+  sheet.addEventListener('drop', (e) => {
+    const cell = e.target.closest('.cell.in');
+    if (!cell) return;
+    e.preventDefault();
+    const to = +cell.dataset.day;
+    const snip = e.dataTransfer.getData(DRAG_SNIP);
+    const day = e.dataTransfer.getData(DRAG_DAY);
+    clearDropMarks();
+    stopEdit();
+    if (snip !== '') dropSnippet(+snip, to);
+    else if (day) dropDay(+day, to, e.ctrlKey || e.altKey || e.metaKey);
+  });
+  sheet.addEventListener('dragend', clearDropMarks);
+  $('snipbar').addEventListener('dragstart', (e) => {
+    const b = e.target.closest && e.target.closest('[data-snip]');
+    if (!b) return;
+    e.dataTransfer.setData(DRAG_SNIP, b.dataset.snip);
+    e.dataTransfer.setData('text/plain', state.snippets[+b.dataset.snip].text);
+    e.dataTransfer.effectAllowed = 'copy';
+  });
 }
 
 /* ===== 이 날 지우기 ===== */
@@ -1675,7 +1772,7 @@ function bind() {
   $('hoursBtn').addEventListener('click', openHours);
   $('replaceBtn').addEventListener('click', openReplace);
   const snip = $('snipbar');
-  snip.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); }); // 고치던 칸 포커스 유지
+  snip.addEventListener('mousedown', (e) => { if (state.editing && e.target.closest('button')) e.preventDefault(); }); // 고치던 칸 포커스 유지 (아닐 땐 끌기 가능)
   snip.addEventListener('click', (e) => {
     const b = e.target.closest('[data-snip]');
     if (b) snipClick(+b.dataset.snip);
@@ -1907,6 +2004,7 @@ function bind() {
 }
 
 bind();
+bindDragDrop();
 renderSnipbar();
 fitZoom();
 updateSaveState();

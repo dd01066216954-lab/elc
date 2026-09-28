@@ -87,14 +87,15 @@
     <li>
       <b>반마다 다른 줄</b>
       <p>줄 맨 앞에 <span class="chip">[탁구]</span>를 붙이면 탁구반 계획표에만 들어가요. 안 붙인 줄은 모두에게 들어가요.</p>
-      <p class="eg">예) <span class="chip">[탁구]</span> <span class="c-blue">*체육(탁구)</span> &nbsp; <span class="chip y">[배드민턴]</span> <span class="c-blue">*체육(배드민턴)</span></p>
+      <p class="eg">예) <span class="chip">[탁구]</span> *체육(탁구) &nbsp; <span class="chip y">[배드민턴]</span> *체육(배드민턴)</p>
     </li>
     <li>
       <b>확인하고 인쇄</b>
       <p>오른쪽 위 <u>「누구 계획표로 볼까요?」</u>에서 이름을 고르면 그 사람이 받을 종이가 보여요. 다 됐으면 <u>개인별 인쇄</u>.</p>
     </li>
   </ol>
-  <p class="colors">글자색: <span class="c-blue">*</span> 또는 <span class="c-blue">→</span>로 시작하면 <span class="c-blue">파란 글씨</span>, <span class="c-red">!</span>로 시작하면 <span class="c-red">빨간 글씨</span>(인쇄할 때 !는 지워져요)</p>
+  <p class="colors">글자는 기본이 검정이에요. 줄을 누르고 위의 <span class="c-blue">파랑</span>·<span class="c-red">빨강</span>을 누르면 색이 바뀌고, 한 번 더 누르면 검정으로 돌아와요.
+    날짜 칸이나 버튼은 <b>끌어다 놓아서</b> 옮길 수도 있어요.</p>
   <button type="button" id="hintClose" class="iconbtn small" aria-label="사용법 닫기">✕</button>
 </section>
 
@@ -104,7 +105,6 @@
   <div class="sgroup"><span class="snip-label">장소</span><div id="snipPlace" class="snipchips"></div></div>
   <div class="sgroup"><span class="snip-label">글자색</span>
     <div id="snipColor" class="snipchips">
-      <button type="button" class="snip color c-black" data-color="black">검정</button>
       <button type="button" class="snip color c-blue" data-color="blue">파랑</button>
       <button type="button" class="snip color c-red" data-color="red">빨강</button>
     </div>
@@ -113,7 +113,7 @@
     <button type="button" id="snipEdit" class="linkbtn">버튼 고치기</button>
     <button type="button" id="clearMonth" class="linkbtn danger">이 달 모두 지우기</button>
   </div>
-  <p class="snip-help small muted">날짜 칸을 누르고 → 출근 → 활동 → 장소 (→ 색을 바꿀 때만 글자색). 칸을 누르지 않고 버튼부터 누르면 여러 날짜에 한꺼번에 넣어요.</p>
+  <p class="snip-help small muted">날짜 칸을 누르고 → 출근 → 활동 → 장소 (→ 색을 바꿀 때만 글자색). 버튼부터 누르면 여러 날짜에 한꺼번에, 버튼을 날짜 칸으로 끌어다 놓아도 돼요.</p>
 </div>
 
 <main class="desk">

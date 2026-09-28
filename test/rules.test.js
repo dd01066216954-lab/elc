@@ -29,12 +29,22 @@ test('묶음에 없는 꼬리표는 가진 사람에게만', () => {
   assert.strictEqual(R.textFor('[바리스타] 실습', { tags: ['바리스타'] }), '실습');
 });
 
-test('글자색과 ! 지우기', () => {
-  assert.strictEqual(R.parseLine('*체육').color, 'blue');
-  assert.strictEqual(R.parseLine('→강사').color, 'blue');
+test('글자색: 기본 검정, ^ 파랑, ! 빨강 (인쇄 때 표시 지움)', () => {
+  assert.strictEqual(R.parseLine('*체육').color, '', '* 와 → 는 이제 그냥 기호');
+  assert.strictEqual(R.parseLine('→강사').color, '');
+  assert.strictEqual(R.parseLine('^*체육').color, 'blue');
   assert.strictEqual(R.parseLine('[탁구] !탁구채').color, 'red');
   assert.strictEqual(R.printedText(R.parseLine('[탁구] !탁구채 가져오기')), '탁구채 가져오기');
+  assert.strictEqual(R.printedText(R.parseLine('^→3층 강당')), '→3층 강당');
   assert.strictEqual(R.parseLine('출근').color, '');
+});
+
+test('예전 규칙(* → 는 파랑)으로 쓴 달은 색 그대로 옮김', () => {
+  assert.strictEqual(R.upgradeColors('출근\n*영화\n[탁구] →강사\n!*우천'), '출근\n^*영화\n[탁구] ^→강사\n!*우천');
+  const mo = R.normalizeMonth({ days: { 1: '*글쓰기' }, notes: '*연락 주세요' }, 10);
+  assert.strictEqual(mo.days[1], '^*글쓰기');
+  assert.strictEqual(mo.notes, '^*연락 주세요');
+  assert.strictEqual(R.normalizeMonth(mo, 10).days[1], '^*글쓰기', '두 번 바꾸지 않음');
 });
 
 test('꼬리표 입력 나누기', () => {
@@ -105,7 +115,7 @@ test('새 달: 지난달이 없으면 더 이전 달에서 복사', () => {
 test('새로 공휴일이 된 날은 한 번만 비움', () => {
   const mo = R.normalizeMonth({ days: { 5: '출근\n*영화', 6: '출근' } }, 10);
   let r = R.clearHolidayDays(mo, [3, 5, 9]);
-  assert.deepStrictEqual(r.cleared, { 5: '출근\n*영화' });
+  assert.deepStrictEqual(r.cleared, { 5: '출근\n^*영화' }); // 예전 규칙 글은 색 표시가 붙어 있음
   assert.strictEqual(mo.days[5], undefined);
   assert.strictEqual(mo.days[6], '출근');
   // 공휴일에 일부러 다시 적은 건 지우지 않음
@@ -212,21 +222,20 @@ test('예전 자주 쓰는 일정 나누기', () => {
   assert.strictEqual(out[0].name, '9시~12시');
 });
 
-test('글자색 바꾸기', () => {
+test('글자색 바꾸기 (기호는 그대로)', () => {
   assert.strictEqual(R.recolorLine('*영화 감상', 'red'), '!*영화 감상');
-  assert.strictEqual(R.recolorLine('!*영화 감상', 'blue'), '*영화 감상');
-  assert.strictEqual(R.recolorLine('영화 감상', 'blue'), '*영화 감상');
-  assert.strictEqual(R.recolorLine('→감상문 쓰기', 'blue'), '→감상문 쓰기');
-  assert.strictEqual(R.recolorLine('*영화 감상', 'black'), '영화 감상');
+  assert.strictEqual(R.recolorLine('!*영화 감상', 'blue'), '^*영화 감상');
+  assert.strictEqual(R.recolorLine('^*영화 감상', 'black'), '*영화 감상');
+  assert.strictEqual(R.recolorLine('→감상문 쓰기', 'blue'), '^→감상문 쓰기');
   assert.strictEqual(R.recolorLine('[탁구] *체육', 'red'), '[탁구] !*체육');
-  assert.strictEqual(R.recolorLine('[탁구] !*체육', 'black'), '[탁구] 체육');
+  assert.strictEqual(R.recolorLine('[탁구] !*체육', 'black'), '[탁구] *체육');
   assert.strictEqual(R.lineColorName('[탁구] !*체육'), 'red');
-  assert.strictEqual(R.lineColorName('출근'), 'black');
+  assert.strictEqual(R.lineColorName('*체육'), 'black');
 });
 
 test('색을 바꾼 활동도 같은 활동으로 봄', () => {
   const movie = { kind: 'activity', text: '*영화 감상\n→감상문 쓰기' };
-  const t = '출근(9시~12시)\n!*영화 감상\n!→감상문 쓰기';
+  const t = '출근(9시~12시)\n^*영화 감상\n!→감상문 쓰기';
   assert.ok(R.hasBlock(t, movie));
   assert.strictEqual(R.toggleActivity(t, movie), '출근(9시~12시)');
 });
