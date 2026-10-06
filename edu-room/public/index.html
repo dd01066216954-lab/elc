@@ -65,9 +65,9 @@ main{padding:24px 16px 48px}
 .chooser .link{margin-top:26px;font-size:14px}
 
 /* 현황표 */
-.cal{min-width:900px;border:2px solid var(--line-strong)}
+.cal{min-width:900px;border:1.5px solid var(--line-strong)}
 .cal-head,.wk{display:grid;grid-template-columns:48px 56px repeat(5,minmax(0,1fr))}
-.cal-head>div{height:34px;display:flex;align-items:center;justify-content:center;background:var(--head);font-weight:700;font-size:16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cal-head>div{height:34px;display:flex;align-items:center;justify-content:center;background:var(--head);font-weight:700;font-size:16px;border-right:1px solid var(--line);border-bottom:1.5px solid var(--line-strong)}
 .cal-head>div:last-child{border-right:0}
 .wk{border-bottom:1.5px solid var(--line-strong)}
 .wk:last-child{border-bottom:0}
@@ -110,7 +110,7 @@ main{padding:24px 16px 48px}
 .half>.bwrap>.blk{flex:1 1 auto}
 .half>:is(.blk,.bwrap)~:is(.blk,.bwrap){border-top:1px solid #C5C9CF}
 .half .blk.pd,.half .blk.newblk{border-radius:0}
-.half .ovnote,.half .adjnote{margin:0;padding:2px 0}
+.half .ovnote{margin:0;padding:2px 0}
 #main .half:not(.out):not(.hol){padding-bottom:18px}
 .ovnote{font-size:11px;font-weight:700;color:#B71C1C;text-align:center;margin-top:-2px}
 .acts{display:flex;justify-content:center;gap:6px;margin-top:4px}
@@ -155,7 +155,6 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 /* 겹치면 양보 */
 .yield{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);padding:0 2px 6px;cursor:pointer}
 .form .etc .yield input{width:16px;height:16px;margin:0;padding:0}
-.adjnote{font-size:10.5px;color:#6B7280;text-align:center;margin-top:-2px}
 
 /* 지우기 */
 .delcell{vertical-align:middle!important;text-align:center}
@@ -508,8 +507,7 @@ function blockHTML(x, d, mode){
       '<div class="t2">'+esc(x.time)+'</div>'+approveBtns(x.src, x.id)+'</div>';
   }
   if (x.adj) {
-    var h0 = '<div class="blk ed lock '+c+(x.ovWith.length ? ' ov' : '')+'" title="다른 일정 때문에 자동으로 줄어든 시간이에요">'+esc(blockText(x))+'</div>'+
-             '<div class="adjnote">'+esc(x.adj.join('·'))+' 때문에 줄어듦</div>';
+    var h0 = '<div class="blk ed lock '+c+(x.ovWith.length ? ' ov' : '')+'" title="다른 일정 때문에 자동으로 줄어든 시간이에요">'+esc(blockText(x))+'</div>';
     if (x.ovWith.length) h0 += '<div class="ovnote">겹침: '+esc(uniq(x.ovWith).join('·'))+'</div>';
     return h0;
   }
