@@ -80,7 +80,12 @@ main{padding:24px 16px 48px}
 .date{display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}
 .date.red{color:var(--red)}
 .half{padding:0;display:flex;flex-direction:column;position:relative;cursor:text}
-.half.am{min-height:92px;border-bottom:1px solid var(--line)}
+.half.am{min-height:92px}
+/* 칸 테두리는 일정 네모 위에 그린다 (색칠한 칸끼리 붙어도, 줄여 인쇄해도 줄이 사라지지 않게) */
+.wk>.half{border-right:0}
+.half::before{content:'';position:absolute;inset:0;border-right:1px solid var(--line);pointer-events:none;z-index:3}
+.half.am::before{border-bottom:1px solid var(--line)}
+.half.c5::before{border-right:0}
 .half.pm{min-height:150px}
 .half.full{min-height:243px}
 .half.out{background:#F7F7F8;cursor:default}
@@ -103,7 +108,7 @@ main{padding:24px 16px 48px}
 .half .blk{align-content:center;padding:6px}
 .half>.bwrap{display:flex;flex-direction:column}
 .half>.bwrap>.blk{flex:1 1 auto}
-.half>:is(.blk,.bwrap)~:is(.blk,.bwrap){border-top:1px solid var(--line)}
+.half>:is(.blk,.bwrap)~:is(.blk,.bwrap){border-top:1px solid #C5C9CF}
 .half .blk.pd,.half .blk.newblk{border-radius:0}
 .half .ovnote,.half .adjnote{margin:0;padding:2px 0}
 #main .half:not(.out):not(.hol){padding-bottom:18px}
