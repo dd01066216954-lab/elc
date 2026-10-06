@@ -79,7 +79,7 @@ main{padding:24px 16px 48px}
 .lab.r2{border-bottom:1px solid var(--line)}
 .date{display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}
 .date.red{color:var(--red)}
-.half{padding:4px;display:flex;flex-direction:column;justify-content:center;gap:4px;position:relative;cursor:text}
+.half{padding:0;display:flex;flex-direction:column;position:relative;cursor:text}
 .half.am{min-height:92px;border-bottom:1px solid var(--line)}
 .half.pm{min-height:150px}
 .half.full{min-height:243px}
@@ -97,6 +97,16 @@ main{padding:24px 16px 48px}
 .blk.strike .t1,.blk.strike .t2{text-decoration:line-through}
 .blk.newblk{background:#fff;border:1.5px solid #2F6FD0;min-height:52px}
 .blk.newblk:empty::before{content:attr(data-ph);color:#9AA0A8;white-space:pre}
+/* 칸 채우기: 일정 네모가 칸을 꽉 채우고, 여러 개면 칸을 나눠 가진다 (가운데 줄로 구분) */
+.half>.blk,.half>.bwrap{flex:1 1 auto}
+.half>.blk.ed,.half>.bwrap>.blk.ed{border:0;border-radius:0}
+.half .blk{align-content:center;padding:6px}
+.half>.bwrap{display:flex;flex-direction:column}
+.half>.bwrap>.blk{flex:1 1 auto}
+.half>:is(.blk,.bwrap)~:is(.blk,.bwrap){border-top:1px solid var(--line)}
+.half .blk.pd,.half .blk.newblk{border-radius:0}
+.half .ovnote,.half .adjnote{margin:0;padding:2px 0}
+#main .half:not(.out):not(.hol){padding-bottom:18px}
 .ovnote{font-size:11px;font-weight:700;color:#B71C1C;text-align:center;margin-top:-2px}
 .acts{display:flex;justify-content:center;gap:6px;margin-top:4px}
 .acts button{height:28px;padding:0 12px;border-radius:5px;font-size:12px}
@@ -148,7 +158,7 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 .rowdel:hover{background:#FDF1F1}
 .bwrap{position:relative}
 .bwrap>.blk{width:100%}
-.bdel{position:absolute;top:-7px;right:-7px;width:24px;height:24px;border-radius:50%;border:1px solid #C9A0A0;background:#fff;color:#A11F1F;font-size:15px;line-height:1;padding:0;display:none;z-index:2}
+.bdel{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:1px solid #C9A0A0;background:#fff;color:#A11F1F;font-size:15px;line-height:1;padding:0;display:none;z-index:2}
 .bwrap:hover .bdel,.bwrap:focus-within .bdel{display:block}
 
 /* 날짜 고르기 */
