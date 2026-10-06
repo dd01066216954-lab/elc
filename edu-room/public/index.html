@@ -176,6 +176,9 @@ table.mng{width:100%;max-width:640px;margin:0 auto;border-collapse:collapse;bord
 .mng th{background:var(--head);height:38px;border:1px solid var(--line);font-size:14.5px}
 .mng td{border:1px solid var(--line);padding:0;vertical-align:middle}
 .mng input{width:100%;height:40px;border:0;padding:0 10px;font-size:15px;font-family:inherit;background:transparent}
+.mng .pin{display:flex;align-items:center}
+.mng .pin input{flex:1;min-width:0}
+.mng .pin .link{flex:none;margin-right:6px}
 .mng .chip{display:block;width:28px;height:20px;border-radius:4px;margin:0 auto}
 .mng-note{max-width:640px;margin:12px auto 0;font-size:13px;color:var(--muted);line-height:1.6}
 .mng-admin{max-width:640px;margin:26px auto 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -657,7 +660,8 @@ function deptHTML(){
   DB.depts.concat([null]).forEach(function(d, i){
     h += '<tr><td>'+(d ? '<span class="chip '+CLS[d.ci % CLS.length]+'"></span>' : '')+'</td>'+
       '<td><input data-dk="'+i+':name" value="'+esc(d ? d.name : '')+'"'+(d ? '' : ' placeholder="새 부서 이름"')+' aria-label="부서명"></td>'+
-      '<td><input data-dk="'+i+':pin" value="" inputmode="numeric"'+(d ? ' placeholder="'+(d.hasPin ? '정해 둠 (바꾸려면 새로 적기)' : '없음 (누구나 들어감)')+'"' : '')+' aria-label="부서 비밀번호"></td></tr>';
+      '<td><div class="pin"><input data-dk="'+i+':pin" value="" inputmode="numeric"'+(d ? ' placeholder="'+(d.hasPin ? '정해 둠 (바꾸려면 새로 적기)' : '없음 (누구나 들어감)')+'"' : '')+' aria-label="부서 비밀번호">'+
+      (d && d.hasPin ? '<button class="link" data-act="clearPin" data-i="'+i+'">없애기</button>' : '')+'</div></td></tr>';
   });
   h += '</tbody></table><p class="mng-note">부서 비밀번호를 정해서 각 부서에 알려 주세요. 각 부서는 처음 한 번만 입력하면 그 컴퓨터에서는 다시 묻지 않아요.<br>부서 이름을 바꾸면 이미 적은 일정의 부서명도 같이 바뀌어요. 부서를 빼려면 이름을 지우세요.</p>'+
        '<div class="mng-admin"><span>관리자 비밀번호</span><input id="adminPinInput" data-dk="admin" value="" placeholder="바꾸려면 새로 적기" aria-label="관리자 비밀번호"></div>';
@@ -955,6 +959,10 @@ document.addEventListener('click', function(e){
         check:function(v){ return api('POST', '/login', {dept:d.name, pin:v}).then(function(){ return null; }, function(e){ return e.message; }); },
         onOk:function(){ DB.me = d.name; }});
     case 'adminEnter': return adminLogin();
+    case 'clearPin':
+      var cd = DB.depts[+b.dataset.i]; if (!admin || !cd) return;
+      return ask({text: cd.name+' 비밀번호를 없앨까요? 누구나 들어갈 수 있게 돼요.', okLabel:'없애기', danger:true,
+        onOk:function(){ cd.hasPin = false; send(function(){ return api('PUT', '/depts', {action:'pin', name:cd.name, pin:''}); }); }});
   }
 });
 function adminLogin(){
