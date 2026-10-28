@@ -148,6 +148,45 @@ main{padding:24px 16px 48px}
 .acts .no{border:1px solid #9A9A9A;background:#fff;color:#333}
 .flash{animation:flash 1.2s ease 2}
 @keyframes flash{50%{box-shadow:0 0 0 4px #FFD54F}}
+/* 휴대폰 */
+@media (max-width: 720px){
+  .bar{padding:8px 10px;gap:6px 8px;min-height:0}
+  .room{font-size:15px}
+  .bar .btn[data-act="print"]{display:none}
+  .nav button{width:36px;height:40px}
+  .nav .ym{min-width:0;font-size:16px;padding:0 4px}
+  .seg button{height:38px;padding:0 14px;font-size:14px}
+  .bar .grow{display:none}
+  #main{padding:10px 0 24px}
+  .sheet{padding:16px 12px 20px;box-shadow:none}
+  .sheet .title{font-size:19px;margin-bottom:12px}
+  .sheet[data-view="form"]::before{content:'← 옆으로 밀어서 보세요 · 신청서는 컴퓨터에서 적기 편해요';display:block;font-size:12.5px;color:var(--muted);margin-bottom:8px}
+  .ask{padding:8px 12px}
+  .ask.pop{max-width:calc(100vw - 24px)}
+  .mpick{position:fixed;top:56px;left:50%;transform:translateX(-50%)}
+}
+.ag{display:flex;flex-direction:column;gap:10px}
+.ag-day{border:1px solid #D4D7DC;border-radius:10px;overflow:hidden;background:var(--paper)}
+.ag-day h2{display:flex;align-items:center;gap:8px;margin:0;padding:8px 12px;background:var(--head);font-size:15px;font-weight:700}
+.ag-day.today{border:2px solid #2F6FD0}
+.ag-day.today h2{background:#EAF1FB}
+.ag-now{font-size:12px;color:#fff;background:#2F6FD0;border-radius:10px;padding:1px 8px}
+.ag-day.hol h2{color:var(--red)}
+.ag-day.hol h2 em{font-style:normal;font-weight:700;margin-left:auto}
+.ag-none{margin:0;padding:10px 12px;font-size:13px;color:#9AA0A8}
+.ag-it{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:0;border-top:1px solid rgba(0,0,0,.06);border-radius:0}
+.ag-day h2+.ag-it{border-top:0}
+.ag-it.pd{background:#fff;border-left:3px dashed #767676}
+.ag-it.ov{box-shadow:inset 3px 0 0 var(--red)}
+.ag-it.mine .ag-bd b::after{content:' · 우리 부서';font-weight:500;font-size:12px;color:var(--muted)}
+.ag-it.strike .ag-bd{text-decoration:line-through;color:#888}
+.ag-tm{flex:none;width:52px;font-size:13px;font-weight:700;line-height:1.3;white-space:pre-line;font-variant-numeric:tabular-nums}
+.ag-bd{flex:1;min-width:0;font-size:14.5px;line-height:1.4;word-break:keep-all}
+.ag-note{font-size:13px;color:#3F444B}
+.ag-bd .tag{font-size:12px;font-weight:700;color:#555;margin-top:2px}
+.ag-bd .acts{justify-content:flex-start}
+.ag-bd .ovnote{text-align:left;margin:2px 0 0}
+.ag-help{font-size:12.5px;color:var(--muted);text-align:center;margin:16px 0 0}
 @media (prefers-reduced-motion:reduce){.flash{animation:none;box-shadow:0 0 0 4px #FFD54F}}
 
 /* 신청서 */
@@ -1138,6 +1177,38 @@ function goMonth(k){
   return queue.then(function(){ return loadMonth(cur); }).then(render, loadFailed);
 }
 
+/* ---------------- 휴대폰: 현황표를 날짜별 목록으로 (보기 위주) ---------------- */
+var phoneMQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : null;
+function isPhone(){ return !!(phoneMQ && phoneMQ.matches); }
+if (phoneMQ) (phoneMQ.addEventListener ? phoneMQ.addEventListener('change', function(){ render(); }) : phoneMQ.addListener(function(){ render(); }));
+var phoneScrolled = null;   // 그 달에서 오늘로 한 번만 내려가기
+function agendaHTML(){
+  var t = ym(), n = dim(), today = todayStr(), h = '<h1 class="title"><em>'+t.m+'월</em> 4층 교육장 현황</h1>';
+  if (admin && M().imported) h += '<div class="notice"><span>'+M().imported.from+' 신청서에서 매주 반복 일정 '+M().imported.n+'개를 가져왔어요.</span><button data-act="hideNotice">닫기</button></div>';
+  h += '<div class="ag">';
+  for (var d = 1; d <= n; d++) {
+    var w = dow(d); if (w === 0 || w === 6) continue;
+    var key = cur + '-' + pad(d), hn = holName(d), isToday = key === today;
+    h += '<section class="ag-day'+(hn ? ' hol' : '')+(isToday ? ' today' : '')+'" id="ag-'+d+'">'+
+         '<h2><span>'+d+'일 ('+'일월화수목금토'[w]+')</span>'+(isToday ? '<b class="ag-now">오늘</b>' : '')+(hn ? '<em>'+esc(hn)+'</em>' : '')+'</h2>';
+    if (!hn) {
+      var it = itemsFor(d, 'screen');
+      if (!it.length) h += '<p class="ag-none">일정 없음</p>';
+      it.forEach(function(x){
+        var mine = !admin && x.dept === DB.me;
+        h += '<div class="ag-it '+(x.pend ? 'pd' : colorOf(x.dept))+(mine ? ' mine' : '')+(x.ovWith.length ? ' ov' : '')+((x.pend === 'del' || x.pend === 'remove') ? ' strike' : '')+'">'+
+          '<div class="ag-tm">'+esc((x.time||'').replace('~', '\n~'))+'</div>'+
+          '<div class="ag-bd"><b>'+esc(x.dept)+'</b>'+(x.prog ? ' &lt;'+esc(x.prog)+'&gt;' : '')+
+          (x.note ? '<div class="ag-note">*'+esc(x.note)+'</div>' : '')+
+          (x.pend ? '<div class="tag">'+PTAG[x.pend]+'</div>'+approveBtns(x.src, x.id) : '')+
+          (x.ovWith.length ? '<div class="ovnote">겹침: '+uniq(x.ovWith).map(ovName).join('·')+'</div>' : '')+'</div></div>';
+      });
+    }
+    h += '</section>';
+  }
+  return h + '</div><p class="ag-help">휴대폰에서는 보기 위주예요. 신청서는 컴퓨터에서 적기 편해요.</p>';
+}
+
 function render(){
   dCache = {}; ORIG = {};
   var ae = document.activeElement, fk = ae && ae.dataset ? (ae.dataset.key || ae.dataset.dk) : null;
@@ -1152,8 +1223,14 @@ function render(){
   if (!admin && !DB.me) { cls += ' chooser'; html = chooserHTML(); }
   else if (view === 'form') html = formHTML('screen');
   else if (view === 'dept') html = deptHTML();
+  else if (isPhone()) { cls += ' phone'; html = agendaHTML(); }
   else html = calHTML('screen');
   main.innerHTML = '<section class="'+cls+'" id="sheet" data-view="'+(!admin && !DB.me ? 'choose' : view)+'">'+html+'</section>';
+  if (cls.indexOf('phone') >= 0 && phoneScrolled !== cur) {
+    phoneScrolled = cur;
+    var td = todayStr(), el0 = td.slice(0, 7) === cur && document.getElementById('ag-' + (+td.slice(8)));
+    if (el0) setTimeout(function(){ el0.scrollIntoView({block:'start'}); window.scrollBy(0, -(document.getElementById('bar').offsetHeight + 10)); }, 0);
+  }
   if (fk) {
     var q = window.CSS && CSS.escape ? CSS.escape(fk) : fk;
     var el = document.querySelector('[data-key="'+q+'"],[data-dk="'+q+'"]');
