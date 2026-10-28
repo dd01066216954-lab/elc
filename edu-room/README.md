@@ -1,15 +1,16 @@
 # 4층 교육장 현황표
 
 부서마다 교육장 이용 신청서를 적으면 월간 현황표가 저절로 만들어지는 웹앱.
-화면은 사용자가 승인한 시안(`교육장현황표.html`)과 같고, 저장만 Cloudflare D1 으로 옮겼다.
+화면은 사용자가 승인한 시안(`교육장현황표.html`)을 기준으로 하고, 저장은 Cloudflare D1 에 한다.
 요구사항은 `SPEC-교육장현황표.md` 기준.
 
 | 파일·폴더 | 내용 |
 |---|---|
-| `public/index.html` | 화면 (시안 그대로. 저장 부분만 `/api` 호출로 바꿈) |
-| `functions/api/[[path]].js`, `lib/api.js` | 저장 API (Cloudflare Pages Functions) |
+| `public/index.html` | 화면 (시안 그대로 + 저장은 `/api` 호출) |
+| `functions/api/[[path]].js`, `lib/api.js` | 저장·들어가기·권한 확인·공휴일 API (Cloudflare Pages Functions) |
+| `lib/holidays.js` | 특일 정보 API 응답 해석, 대체공휴일 계산 (월간 일정표와 같은 코드) |
 | `lib/schema.js` | DB 표 — 처음 접속할 때 저절로 만들어짐. 부서 5개·이용 규칙·10월 예시 일정도 넣음 |
-| `test/` | API 테스트 (`npm test`) |
+| `test/` | 테스트 (`npm test`) |
 
 ## 배포하기 — Cloudflare 웹사이트에서 (프로그램 설치 필요 없음)
 
@@ -23,30 +24,67 @@
 1. **Workers & Pages → Create → Pages** 탭 → **Import an existing Git repository**
 2. 저장소 `elc` 선택
 3. 설정
-   - Project name: `edu-room` (주소가 `https://edu-room.pages.dev` 가 됩니다. 이미 쓰는 이름이면 다른 이름)
-   - Production branch: `claude/lucid-wozniak-0p1ol8` (main 으로 합치면 `main`)
-   - Framework preset: **None**, Build command: **비워 둠**
-   - **Root directory (advanced)**: **`edu-room`**  ← 꼭 넣기
+   - Project name: `edu-room` (주소가 `https://edu-room.pages.dev` 가 됩니다)
+   - Production branch: 코드가 있는 브랜치 (지금은 `claude/lucid-wozniak-0p1ol8`, main 으로 합치면 `main`)
+   - Framework preset: **None**
+   - Build command: **비워 둠** (안 되면 `exit 0`)
    - Build output directory: **`public`**
+   - **Root directory (advanced)**: **`edu-room`**  ← 꼭 넣기. Build command 칸에 넣으면 안 됩니다
 4. **Save and Deploy**
 
-**3. DB 연결**
-프로젝트 → **Settings → Bindings → Add → D1 database** — Variable name `DB`, 데이터베이스 `edu-room`.
-그다음 **Deployments** 탭 → 맨 위 배포의 **⋯ → Retry deployment** (설정은 다시 배포해야 적용됩니다).
+**3. DB·공휴일 키 연결**
+프로젝트 → **Settings**
+1. **Bindings → Add → D1 database** — Variable name `DB`, 데이터베이스 `edu-room`
+2. **Variables and Secrets → Add** — 종류 **Secret**, 이름 `HOLIDAY_API_KEY`, 값은 공휴일 서비스키 (아래 참고, 나중에 넣어도 됨)
+3. **Deployments** 탭 → 맨 위 배포의 **⋯ → Retry deployment** (설정은 다시 배포해야 적용됩니다)
 
 이후 GitHub 에 코드가 올라가면 Cloudflare 가 저절로 다시 배포합니다.
 
-**배포 직후 관리자가 바로** 주소 끝에 `#admin` 을 붙여 들어가서(`https://edu-room.pages.dev/#admin`) 관리자 비밀번호를 정하세요.
-관리자 비밀번호가 없으면 처음 들어온 사람이 정하게 됩니다.
+## 배포 직후 — 관리자 비밀번호 정하기 (꼭 바로)
 
-시안의 10월 예시 일정이 들어 있습니다. 실제로 쓰기 전에 관리자 → 신청서 → `10월 전부 지우기`로 지울 수 있습니다.
+주소 끝에 **`#admin`** 을 붙여 들어갑니다: `https://edu-room.pages.dev/#admin`
+(첫 화면 아래 작은 글씨 `관리자로 들어가기`를 눌러도 됩니다)
 
-## 신청 기간
+관리자 비밀번호가 아직 없으면 노란 줄에 「처음이라 관리자 비밀번호를 정해 주세요」가 뜹니다.
+**처음 들어온 사람이 정하게 되므로, 배포하자마자 관리자가 먼저 정하세요.** (4자리 이상)
+나중에 바꾸려면 관리자 → `부서` → 맨 아래 「관리자 비밀번호」.
 
-관리자 → 신청서 → 규칙 상자 아래 **「N월 신청 기간」** 에서 시작일·마감일을 고릅니다 (모든 부서 같은 기간).
-- 기간 안: 부서가 적으면 바로 반영 (확정한 달은 확정이 우선이라 승인 대기)
-- 기간 밖(시작 전·마감 후): 부서가 적거나 고치면 **승인 대기** → 관리자가 승인/반려
+관리자로 들어간 상태는 그 창에서만, 최대 12시간 유지됩니다. 창을 새로 열면 다시 비밀번호를 묻습니다.
+
+## 부서 비밀번호 나눠 주기
+
+1. 관리자 → `부서` 탭 → 각 부서 줄의 **부서 비밀번호** 칸에 적고 Enter
+2. 그 비밀번호를 부서 담당자에게 따로 알려 줍니다 (메신저·쪽지 등)
+3. 부서 담당자는 첫 화면에서 자기 부서를 누르고 비밀번호를 한 번 넣으면, **그 컴퓨터에서는 180일 동안 다시 묻지 않습니다**
+
+- 비밀번호를 비워 두면 그 부서는 비밀번호 없이 들어갑니다 (처음 상태)
+- 비밀번호를 **바꾸거나 `없애기`** 하면, 그 부서로 들어가 있던 컴퓨터는 다음에 저장할 때 다시 들어오라고 나옵니다
+- 비밀번호를 5번 틀리면 5분 동안 막힙니다
+- 비밀번호는 DB 에 암호화(해시)해서만 저장되어, 관리자도 다시 볼 수 없습니다. 잊으면 새로 정하면 됩니다
+
+부서는 **자기 부서 일정만** 만들고 고치고 지울 수 있습니다. 화면뿐 아니라 서버에서도 막습니다.
+
+## 신청 기간과 확정
+
+- **신청 기간**: 관리자 → 신청서 → 규칙 상자 아래 「N월 신청 기간」에서 시작일·마감일 (모든 부서 같은 기간).
+  그 아래 「아직 안 적은 부서」도 보입니다.
+- 기간 밖(시작 전·마감 후)이나 **확정한 달**에서 부서가 적거나 고치면 **승인 대기** → 관리자가 `대기 N건`을 눌러 승인/반려
 - 두 날짜를 비우면 기간 없음 (확정 전까지 언제든 적을 수 있음)
+- 날짜는 한국 시간 기준으로 서버가 판단합니다
+
+## 공휴일 서비스키
+
+1. [공공데이터포털](https://www.data.go.kr)에서 「한국천문연구원_특일 정보」 활용신청 (보통 바로 승인)
+2. 마이페이지 → 활용 신청 현황 → **일반 인증키** 복사 (Encoding·Decoding 어느 쪽이든 됩니다)
+3. 위 3-2 의 `HOLIDAY_API_KEY` 에 붙여넣고 다시 배포
+
+받아 온 공휴일은 DB 에 달마다 저장되고 일주일마다 다시 확인합니다(임시공휴일 대비). 대체공휴일은 API 가 늦게 올려도 직접 계산해 채웁니다.
+키가 없거나 API 가 안 되면 저장해 둔 값, 그것도 없으면 화면에 들어 있는 2026~2027년 공휴일을 씁니다.
+
+## 여러 사람이 동시에
+
+- 줄 단위로 저장합니다. 같은 줄을 동시에 고치면 나중에 저장한 것이 남습니다.
+- 화면은 1분마다, 그리고 창으로 다시 돌아올 때 그 달을 다시 불러옵니다. 적는 중인 칸이나 펼친 달력·시간 고르기는 덮어쓰지 않습니다.
 
 ## 내 컴퓨터에서 해 보기 (개발용, 선택)
 
@@ -57,4 +95,4 @@ npm run dev     # http://localhost:8788
 npm test
 ```
 
-`wrangler.toml` 은 만들지 않습니다. 있으면 Cloudflare 화면에서 DB 설정을 바꿀 수 없게 됩니다.
+`wrangler.toml` 은 만들지 않습니다. 있으면 Cloudflare 화면에서 DB·비밀 변수 설정을 바꿀 수 없게 됩니다.
