@@ -278,31 +278,41 @@ var HOL = {
 
 /* ---------------- 저장: 서버(/api)에 줄 단위로 ---------------- */
 /* 화면 쪽 로직은 시안 그대로 DB 를 고치고, save() 가 서버에 맞춰 둔 모습(snap)과 비교해 바뀐 줄만 보낸다. */
-var PREF = 'edu-room-4f-prefs';   // 이 기기에서만 기억: 고른 부서, 보던 달·보기
-var DB = {depts:[], rules:'', adminSet:false, me:null, months:{}, times:[]}, admin = false, view = 'cal', cur;
+var PREF = 'edu-room-4f-prefs';   // 이 기기에서만 기억: 고른 부서와 그 부서 토큰, 보던 달·보기
+var DB = {depts:[], rules:'', adminSet:false, me:null, months:{}, times:[], today:null}, admin = false, view = 'cal', cur;
+var deptToken = null, adminToken = null;   // 관리자 토큰은 이 창에서만 (새로 열면 다시 비밀번호)
 var snap = {ym:null};
 function loadPrefs(){
   var p = {}; try { p = JSON.parse(localStorage.getItem(PREF) || '{}') || {}; } catch(e) {}
   var now = new Date();
   cur = /^\d{4}-\d{2}$/.test(p.cur) ? p.cur : now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
   view = p.view === 'form' ? 'form' : 'cal';
-  DB.me = p.me || null;
+  DB.me = p.me && p.tok ? p.me : null;
+  deptToken = DB.me ? p.tok : null;
 }
 function savePrefs(){
-  try { localStorage.setItem(PREF, JSON.stringify({cur:cur, view: view === 'dept' ? 'cal' : view, me:DB.me})); } catch(e) {}
+  try { localStorage.setItem(PREF, JSON.stringify({cur:cur, view: view === 'dept' ? 'cal' : view, me:DB.me, tok: DB.me ? deptToken : null})); } catch(e) {}
 }
 function save(){ savePrefs(); sync(); }
 function api(method, path, body){
-  return fetch('/api' + path, {method:method, headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined})
+  var h = body ? {'Content-Type':'application/json'} : {}, tok = admin ? adminToken : deptToken;
+  if (tok && path !== '/login') h.Authorization = 'Bearer ' + tok;
+  return fetch('/api' + path, {method:method, headers:h, body: body ? JSON.stringify(body) : undefined})
     .then(function(res){
       return res.json().catch(function(){ return {}; }).then(function(data){
-        if (!res.ok) { var e = new Error(data.error || '저장하지 못했어요.'); e.status = res.status; throw e; }
+        if (!res.ok) { var e = new Error(data.error || '저장하지 못했어요.'); e.status = res.status; e.login = !!data.login; throw e; }
+        if (data.fixed) needReload = true;   // 서버가 승인 대기로 바꿔 저장함 → 다시 불러오기
         return data;
       });
     }, function(){ throw new Error('인터넷 연결을 확인해 주세요.'); });
 }
 function setMonth(data){
-  DB.depts = data.depts; DB.rules = data.rules; DB.adminSet = data.adminSet; DB.times = data.times;
+  DB.depts = data.depts; DB.rules = data.rules; DB.adminSet = data.adminSet; DB.times = data.times; DB.today = data.today;
+  if (data.holidays) {   // 공휴일 API 에서 받은 것으로 그 달을 바꿈 (못 받았으면 위 기본 목록 그대로)
+    Object.keys(HOL).forEach(function(k){ if (k.indexOf(data.ym + '-') === 0) delete HOL[k]; });
+    Object.keys(data.holidays).forEach(function(k){ HOL[k] = data.holidays[k]; });
+    dCache = {};
+  }
   DB.months[data.ym] = {confirmed:data.confirmed, imported:data.imported, rows:data.rows, ops:data.ops, period:data.period};
   if (DB.me && !deptOf(DB.me)) { DB.me = null; savePrefs(); }
   if (data.ym === cur) markSynced();
@@ -333,16 +343,34 @@ function sync(){
   jobs.forEach(function(j){ send(function(){ return api(j[0], j[1], j[2]); }); });
 }
 /* 순서대로 보내고, 하나라도 안 되면 서버 내용으로 다시 불러온다 */
+var needReload = false, pending = 0;
 function send(fn, after){
-  queue = queue.then(fn).then(after || null).catch(saveFailed);
+  pending++;
+  queue = queue.then(fn).then(after || null).catch(saveFailed).then(function(){
+    if (--pending === 0 && needReload) { needReload = false; loadMonth(cur).then(render, function(){}); }
+  });
   return queue;
 }
 var failing = false;
 function saveFailed(e){
+  if (e && e.login) return loggedOut();
   if (failing) return; failing = true;
   setTimeout(function(){ failing = false; }, 1500);
   loadMonth(cur).then(render, function(){});
   ask({text: '저장하지 못했어요. ' + (e && e.message ? e.message : '') + ' 서버에 있는 내용으로 다시 불러왔어요.', okLabel:'확인', onOk:function(){}});
+}
+/* 토큰이 끝났거나 비밀번호가 바뀜 → 다시 들어오게 */
+function loggedOut(){
+  var wasAdmin = admin;
+  if (admin) { admin = false; adminToken = null; if (view === 'dept') view = 'cal'; }
+  else { DB.me = null; deptToken = null; }
+  savePrefs();
+  loadMonth(cur).then(render, function(){ render(); });
+  setTimeout(function(){
+    if (wasAdmin) ask({text: '관리자로 들어온 지 오래되어 다시 비밀번호가 필요해요. 방금 고친 것은 저장되지 않았어요.', pin:true, okLabel:'들어가기',
+      check: adminCheck(false), onOk:function(){ admin = true; }});
+    else ask({text: '부서 비밀번호가 바뀌어서 다시 들어와야 해요. 부서를 골라 주세요.', okLabel:'확인', onOk:function(){}});
+  }, 50);
 }
 /* 서버가 처리하고 그 달을 통째로 돌려주는 요청 (승인, 확정, 전부 지우기) */
 function sendMonth(path, body){ send(function(){ return api('POST', path, body); }, function(d){ setMonth(d); render(); }); }
@@ -438,7 +466,7 @@ function deptRank(name){ var i = DB.depts.findIndex(function(x){ return x.name =
 function canEdit(dept){ return admin || (DB.me && dept === DB.me); }
 function needsApproval(){ return !admin && (M().confirmed || !periodOpen()); }
 /* 신청 기간: 정하지 않으면 늘 열려 있음. 기간 밖에서 부서가 고치면 승인 대기 */
-function todayStr(){ var n = new Date(); return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate()); }
+function todayStr(){ if (DB.today) return DB.today; var n = new Date(); return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate()); }
 function periodOpen(){
   var p = M().period, t = todayStr();
   return !p || ((!p.from || t >= p.from) && (!p.to || t <= p.to));
@@ -979,7 +1007,7 @@ function changeDept(el){
   var v = el.value.trim(), reload = function(){ return loadMonth(cur).then(render); };
   var put = function(body, after){ send(function(){ return api('PUT', '/depts', body); }, after || reload); };
   if (el.dataset.dk === 'admin') {
-    if (v.length >= 4) send(function(){ return api('PUT', '/settings', {adminPin:v}); }, function(){ el.value = ''; });
+    if (v.length >= 4) send(function(){ return api('PUT', '/settings', {adminPin:v}); }, function(r){ if (r.token) adminToken = r.token; el.value = ''; });
     return;
   }
   var p = el.dataset.dk.split(':'), i = +p[0], f = p[1], d = DB.depts[i];
@@ -1048,13 +1076,13 @@ document.addEventListener('click', function(e){
       decide(b.dataset.src, b.dataset.id, act === 'approve'); markSynced();
       sendMonth('/approve', {kind: b.dataset.src === 'row' ? 'row' : 'op', id: b.dataset.id, ok: act === 'approve'});
       return commit();
-    case 'switchDept': DB.me = null; return commit();
-    case 'adminExit': admin = false; if (location.hash) history.replaceState(null, '', location.pathname + location.search); if (view === 'dept') view = 'cal'; return commit();
+    case 'switchDept': DB.me = null; deptToken = null; return commit();
+    case 'adminExit': admin = false; adminToken = null; if (location.hash) history.replaceState(null, '', location.pathname + location.search); if (view === 'dept') view = 'cal'; return commit();
     case 'pickDept':
       var d = deptOf(b.dataset.name); if (!d) return;
-      if (!d.hasPin) { DB.me = d.name; return commit(); }
-      return ask({text: d.name+' 비밀번호를 적어 주세요.', pin:true, okLabel:'들어가기',
-        check:function(v){ return api('POST', '/login', {dept:d.name, pin:v}).then(function(){ return null; }, function(e){ return e.message; }); },
+      var deptLogin = function(v){ return api('POST', '/login', {dept:d.name, pin:v}).then(function(r){ deptToken = r.token; return null; }, function(e){ return e.message; }); };
+      if (!d.hasPin) return deptLogin('').then(function(err){ if (err) return ask({text:err, okLabel:'확인', onOk:function(){}}); DB.me = d.name; commit(); });
+      return ask({text: d.name+' 비밀번호를 적어 주세요.', pin:true, okLabel:'들어가기', check:deptLogin,
         onOk:function(){ DB.me = d.name; }});
     case 'adminEnter': return adminLogin();
     case 'clearPin':
@@ -1067,11 +1095,13 @@ function adminLogin(){
       if (admin) return;
       var first = !DB.adminSet;
       ask({text: first ? '처음이라 관리자 비밀번호를 정해 주세요 (4자리 이상).' : '관리자 비밀번호를 적어 주세요.', pin:true, okLabel:'들어가기',
-        check:function(v){
-          if (first && v.length < 4) return '4자리 이상으로 정해 주세요.';
-          return api('POST', '/login', {admin:true, pin:v}).then(function(){ return null; }, function(e){ return e.message; });
-        },
-        onOk:function(){ DB.adminSet = true; admin = true; }});
+        check: adminCheck(first), onOk:function(){ DB.adminSet = true; admin = true; }});
+}
+function adminCheck(first){
+  return function(v){
+    if (first && v.length < 4) return '4자리 이상으로 정해 주세요.';
+    return api('POST', '/login', {admin:true, pin:v}).then(function(r){ adminToken = r.token; return null; }, function(e){ return e.message; });
+  };
 }
 document.addEventListener('click', function(e){
   var b = e.target.closest('button[data-act]'); if (!b) return;

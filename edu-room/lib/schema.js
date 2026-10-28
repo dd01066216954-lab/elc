@@ -26,9 +26,13 @@ const TABLES = [
     type TEXT NOT NULL, row_id TEXT, blk TEXT,
     pend_kind TEXT, pend_prev TEXT, updated_at INTEGER NOT NULL)`,
   'CREATE INDEX IF NOT EXISTS ops_month ON ops (room, ym)',
-  // rules(이용 규칙), admin_pin_hash, token_secret
+  // rules(이용 규칙), admin_pin_hash, token_secret(토큰 서명용, 처음에 저절로 만듦)
   'CREATE TABLE IF NOT EXISTS settings (room TEXT, key TEXT, value TEXT, PRIMARY KEY(room, key))',
   'CREATE TABLE IF NOT EXISTS holidays (date TEXT PRIMARY KEY, name TEXT NOT NULL)',
+  // 공휴일 API 를 어느 달까지 받아 왔는지 (공휴일이 없는 달도 기록)
+  'CREATE TABLE IF NOT EXISTS holiday_fetches (ym TEXT PRIMARY KEY, fetched_at INTEGER NOT NULL)',
+  // 비밀번호 틀린 횟수 (5번 틀리면 5분 막기)
+  'CREATE TABLE IF NOT EXISTS login_fails (key TEXT PRIMARY KEY, n INTEGER NOT NULL, until INTEGER NOT NULL)',
 ];
 
 const RULES = '1. 이용시간을 지킵니다.\n2. 시설과 물건을 소중히 다루고 깨끗이 사용합니다.\n3. 사용 후에는 전원 스위치를 확인하고 소독 및 정리를 합니다.';
