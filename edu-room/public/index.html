@@ -109,7 +109,8 @@ main{padding:24px 16px 48px}
 .half.full{min-height:243px}
 .half.out{background:#F7F7F8;cursor:default}
 .half:not(.out):not(.hol):hover::after{content:'+ 적기';position:absolute;right:6px;bottom:3px;font-size:11px;color:#9AA0A8;pointer-events:none}
-.half.hol{display:flex;align-items:center;justify-content:center;color:var(--red);font-size:26px;font-weight:700;cursor:default;text-align:center}
+.half.hol{display:flex;align-items:center;justify-content:center;color:var(--red);font-size:26px;font-weight:700;cursor:default;text-align:center;line-height:1.25;word-break:keep-all}
+.half.hol small{font-size:.8em}
 
 .blk{padding:4px 6px;border-radius:4px;text-align:center;line-height:1.32;font-size:12px;color:var(--ink);white-space:pre-line;word-break:keep-all;overflow-wrap:anywhere}
 .blk.ed::first-line{font-weight:700;font-size:12.5px}
@@ -697,6 +698,8 @@ function blockHTML(x, d, mode){
 }
 
 /* ---------------- 현황표 ---------------- */
+/* 공휴일 이름 줄바꿈: '대체공휴일(노동절)' → 대체공휴일 / (노동절), '개천절 · 추석' → 한 줄에 하나 */
+function holHTML(n){ return '<span>'+esc(n).split(/\s*·\s*/).map(function(x){ return x.replace(/\s*\(/, '<br><small>(') .replace(/\)$/, ')</small>'); }).join('<br>')+'</span>'; }
 function weeksOf(){
   var n = dim(), d1 = dow(1), mon = 1 - ((d1 + 6) % 7), weeks = [];
   for (var s = mon; s <= n; s += 7) {
@@ -724,7 +727,7 @@ function calHTML(mode, part){
       }
       var hn = holName(d);
       h += '<div class="date'+(hn ? ' red' : '')+last+'" style="'+col+'grid-row:1">'+d+'</div>';
-      if (hn) { h += '<div class="half hol'+last+'" style="'+col+'grid-row:2/4">'+esc(hn)+'</div>'; return; }
+      if (hn) { h += '<div class="half hol'+last+'" style="'+col+'grid-row:2/4">'+holHTML(hn)+'</div>'; return; }
       var it = itemsFor(d, mode), blk = function(x){ return blockHTML(x,d,mode); };
       if (it.some(isFull)) {
         h += '<div class="half full'+last+'" data-d="'+d+'" data-half="am" style="'+col+'grid-row:2/4">'+it.map(blk).join('')+'</div>';
