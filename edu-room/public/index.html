@@ -30,7 +30,18 @@ button:focus-visible,input:focus-visible,[contenteditable]:focus{outline:2px sol
 .nav{display:flex;align-items:center}
 .nav button{width:44px;height:44px;border:0;background:transparent;font-size:16px;color:#333;border-radius:8px}
 .nav button:hover{background:var(--head)}
-.nav span{min-width:112px;text-align:center;font-size:17px;font-weight:500}
+.nav{position:relative}
+.nav .ym{width:auto;min-width:120px;padding:0 10px;font-size:17px;font-weight:500;color:var(--ink)}
+.nav .ym::after{content:' ▾';font-size:12px;color:var(--muted)}
+.mpick{position:absolute;top:48px;left:50%;transform:translateX(-50%);z-index:30;background:var(--paper);border:1px solid #C5CAD2;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.16);padding:12px;width:260px}
+.mp-y{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.mp-y b{font-size:17px}
+.mpick .mp-y button{width:40px;height:36px}
+.mp-g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mpick .mp-g button{width:auto;height:40px;border:1px solid #D4D7DC;border-radius:8px;background:#fff;font-size:15px}
+.mpick .mp-g button.now{border-color:#2F6FD0;color:#2F6FD0;font-weight:700}
+.mpick .mp-g button.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+.mp-today{display:block;margin:8px auto 0}
 .seg{display:flex;border:1px solid #B9BEC6;border-radius:8px;overflow:hidden}
 .seg button{height:42px;padding:0 20px;border:0;background:var(--paper);color:#444;font-size:15px}
 .seg button+button{border-left:1px solid #D4D7DC}
@@ -187,13 +198,24 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 .tp-b.tp-m{min-width:40px;background:#F4F6F9}
 .tp-b.on{background:#2F6FD0;border-color:#2F6FD0;color:#fff;font-weight:700}
 .tp-quick .tp-b{border-radius:18px;background:#F4F6F9}
-.tp-busy{position:relative;margin:2px 0 0 44px;border-top:1px solid #C5CAD2;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/11.5 - 1px),#E3E6EA calc(100%/11.5 - 1px) calc(100%/11.5))}
+.tp-busy{position:relative;margin:2px 0 0 64px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;border-top:1px solid #C5CAD2;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/11.5 - 1px),#E3E6EA calc(100%/11.5 - 1px) calc(100%/11.5))}
 .tp-tick{position:absolute;top:1px;font-size:10.5px;color:var(--muted);transform:translateX(-50%)}
 .tp-tick:first-child{transform:none}
 .tp-seg{position:absolute;height:20px;border-radius:3px;font-size:11px;font-weight:700;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:default}
-.tp-mine{position:absolute;top:16px;bottom:0;background:rgba(47,111,208,.14);border:2px solid #2F6FD0;border-radius:3px;pointer-events:none;z-index:1}
+.tp-mine{position:absolute;top:16px;bottom:0;background:rgba(47,111,208,.16);border:2px solid #2F6FD0;border-radius:4px;z-index:2;cursor:grab;display:flex;align-items:center;justify-content:center;min-width:6px}
+.tp-mine.drag{cursor:grabbing;box-shadow:0 2px 10px rgba(47,111,208,.35)}
+.tp-mine.bad{border-color:var(--red);background:rgba(198,40,40,.14)}
+.tp-mine.bad .tp-lab{color:var(--red)}
+.tp-lab{font-size:11.5px;font-weight:700;color:#1F4F9A;white-space:nowrap;background:rgba(255,255,255,.85);border-radius:3px;padding:0 3px;pointer-events:none}
+.tp-h{position:absolute;top:0;bottom:0;width:12px;cursor:ew-resize}
+.tp-h.l{left:-7px}.tp-h.r{right:-7px}
+.tp-h::after{content:'';position:absolute;top:calc(50% - 8px);left:4px;width:4px;height:16px;border-radius:2px;background:#2F6FD0}
+.tp-mine.bad .tp-h::after{background:var(--red)}
+.tp-tick,.tp-free{pointer-events:none}
+.tp-free.none{color:var(--muted)}
+.tp-day{position:absolute;left:-64px;right:0;border-top:1px solid #E3E6EA;font-size:11.5px;font-weight:700;color:var(--muted);line-height:22px;padding-left:2px;pointer-events:none}
+.tp-how{margin:2px 0 0 64px;font-size:12px;color:var(--muted)}
 .tp-free{position:absolute;top:20px;left:0;font-size:12px;color:#1E6B3A}
-.tp-busy-none{margin-left:44px;font-size:12.5px;color:var(--muted)}
 .tp-side{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-left:44px}
 
 /* 겹치면 양보 */
@@ -293,7 +315,7 @@ table.mng{width:100%;max-width:640px;margin:0 auto;border-collapse:collapse;bord
 
 <script>
 'use strict';
-/* ---------------- 공휴일 (2026~2027, 정식 버전에서는 공휴일 API로 자동 갱신) ---------------- */
+/* ---------------- 공휴일 기본 목록 (2026~2028). 서버가 특일 정보 API 에서 받은 달은 그것으로 바꿈 ---------------- */
 var HOL = {
   '2026-01-01':'신정','2026-02-16':'설날','2026-02-17':'설날','2026-02-18':'설날',
   '2026-03-01':'삼일절','2026-03-02':'대체공휴일','2026-05-05':'어린이날',
@@ -306,7 +328,12 @@ var HOL = {
   '2027-07-17':'제헌절','2027-08-15':'광복절','2027-08-16':'대체공휴일',
   '2027-09-14':'추석','2027-09-15':'추석','2027-09-16':'추석',
   '2027-10-03':'개천절','2027-10-04':'대체공휴일','2027-10-09':'한글날','2027-10-11':'대체공휴일',
-  '2027-12-25':'성탄절','2027-12-27':'대체공휴일'
+  '2027-12-25':'성탄절','2027-12-27':'대체공휴일',
+  '2028-01-01':'신정','2028-01-25':'설날','2028-01-26':'설날','2028-01-27':'설날',
+  '2028-03-01':'삼일절','2028-04-12':'국회의원선거일','2028-05-02':'부처님오신날','2028-05-05':'어린이날',
+  '2028-06-06':'현충일','2028-07-17':'제헌절','2028-08-15':'광복절',
+  '2028-10-02':'추석','2028-10-03':'개천절 · 추석','2028-10-04':'추석','2028-10-05':'대체공휴일',
+  '2028-10-09':'한글날','2028-12-25':'성탄절'
 };
 
 /* ---------------- 저장: 서버(/api)에 줄 단위로 ---------------- */
@@ -341,7 +368,7 @@ function api(method, path, body){
 }
 function setMonth(data){
   DB.depts = data.depts; DB.rules = data.rules; DB.adminSet = data.adminSet; DB.times = data.times; DB.today = data.today;
-  if (data.holidays) {   // 공휴일 API 에서 받은 것으로 그 달을 바꿈 (못 받았으면 위 기본 목록 그대로)
+  if (data.holidays && Object.keys(data.holidays).length) {   // 공휴일 API 에서 받은 것으로 그 달을 바꿈 (못 받았거나 비었으면 위 기본 목록 그대로)
     Object.keys(HOL).forEach(function(k){ if (k.indexOf(data.ym + '-') === 0) delete HOL[k]; });
     Object.keys(data.holidays).forEach(function(k){ HOL[k] = data.holidays[k]; });
     dCache = {};
@@ -757,40 +784,108 @@ function timePickHTML(rid, r, span){
   var h = '<tr class="pickrow"><td colspan="'+span+'"><div class="tpick">';
   h += '<div class="tp-line tp-quick"><b>자주</b>'+timeChips().map(function(c){ return '<button type="button" class="tp-b" data-act="tchip" data-row="'+rid+'" data-v="'+c+'">'+c+'</button>'; }).join('')+'</div>';
   h += line('시작', 's', sh, sm) + line('끝', 'e', eh, em);
-  h += busyHTML(r, t);
+  h += busyHTML(rid, r, t);
   h += '<div class="tp-side"><span class="pk-sum">'+(t ? t.label : '시작 시간을 눌러 주세요')+'</span>'+
        '<span class="pk-help">글자로 적어도 돼요 (예: 1330 1500, 1시반~3시)</span>'+
        '<button class="btn primary" data-act="tpClose" data-row="'+rid+'">다 골랐어요</button></div>';
   return h + '</div></td></tr>';
 }
 /* 고른 날짜에 다른 일정이 쓰는 시간 (하루라도 겹치면 표시) */
-function busyHTML(r, t){
-  var days = r ? selDays(r.sel) : [];
-  if (!days.length) return '<div class="tp-busy-none">이용날짜를 먼저 고르면 그날 다른 일정이 쓰는 시간이 여기에 보여요.</div>';
-  var seen = {}, list = [];
-  days.forEach(function(d){
+/* 막대: 고른 날짜에 다른 일정이 쓰는 시간 + 내 시간(파란 네모, 끌어서 옮기기·늘이기, 빈 곳을 끌면 새로) */
+function busyHTML(rid, r, t){
+  /* 고른 날짜마다 한 줄 (왼쪽에 '14일(수)'), 그날 다른 일정을 부서 색으로. 파란 네모는 모든 줄에 걸쳐 내 시간 */
+  var days = r ? selDays(r.sel) : [], LANE = 22, TOP = 18;
+  var rows = days.map(function(d){
+    var list = [], lanes = [];
     itemsFor(d, 'screen').forEach(function(x){
       if (x.rowId === r.id || x.s == null || x.pend === 'new' || x.pend === 'del' || x.pend === 'remove') return;
-      var k = x.dept+'|'+x.s+'|'+x.e;
-      if (!seen[k]) list.push(seen[k] = {dept:x.dept, prog:x.prog, s:x.s, e:x.e, days:[]});
-      seen[k].days.push(d);
+      list.push({dept:x.dept, prog:x.prog, s:x.s, e:x.e});
     });
+    list.sort(function(a,b){ return a.s - b.s; }).forEach(function(x){
+      var i = 0; while (lanes[i] != null && lanes[i] > x.s) i++;
+      lanes[i] = x.e; x.lane = i;
+    });
+    return {d:d, list:list, n:Math.max(1, lanes.length)};
   });
-  var lanes = [];
-  list.sort(function(a,b){ return a.s - b.s; }).forEach(function(x){
-    var i = 0; while (lanes[i] != null && lanes[i] > x.s) i++;
-    lanes[i] = x.e; x.lane = i;
+  var total = rows.reduce(function(a, x){ return a + x.n; }, 0) || 2;
+  var h = '<div class="tp-busy" data-row="'+rid+'" style="height:'+(total*LANE+TOP+2)+'px">';
+  for (var x = 8; x <= 19; x++) h += '<span class="tp-tick" style="left:'+tpPos(x*60)+'%">'+hLabel(x)+'</span>';
+  var y = TOP, all = [];
+  rows.forEach(function(rw){
+    h += '<span class="tp-day" style="top:'+y+'px;height:'+(rw.n*LANE)+'px">'+rw.d+'일('+'일월화수목금토'[dow(rw.d)]+')</span>';
+    rw.list.forEach(function(x){
+      var tip = rw.d+'일 '+x.dept+(x.prog ? ' <'+x.prog+'>' : '')+' '+hm(x.s)+'~'+hm(x.e);
+      h += '<span class="tp-seg '+colorOf(x.dept)+'" data-s="'+x.s+'" data-e="'+x.e+'" title="'+esc(tip)+'" style="left:'+tpPos(x.s)+'%;width:'+(tpPos(x.e)-tpPos(x.s))+'%;top:'+(y+1+x.lane*LANE)+'px">'+esc(x.dept)+'</span>';
+      all.push(x);
+    });
+    y += rw.n * LANE;
   });
-  var pos = function(m){ return Math.max(0, Math.min(100, (m - TP_A) / (TP_B - TP_A) * 100)); };
-  var nl = Math.max(1, lanes.length), h = '<div class="tp-busy" style="height:'+(nl*22+18)+'px">';
-  for (var x = 8; x <= 19; x++) h += '<span class="tp-tick" style="left:'+pos(x*60)+'%">'+hLabel(x)+'</span>';
-  if (t) h += '<span class="tp-mine" style="left:'+pos(t.s)+'%;width:'+(pos(t.e)-pos(t.s))+'%"></span>';
-  list.forEach(function(x){
-    var tip = x.dept+(x.prog ? ' <'+x.prog+'>' : '')+' '+hm(x.s)+'~'+hm(x.e)+' · '+x.days.join(', ')+'일';
-    h += '<span class="tp-seg '+colorOf(x.dept)+'" title="'+esc(tip)+'" style="left:'+pos(x.s)+'%;width:'+(pos(x.e)-pos(x.s))+'%;top:'+(18+x.lane*22)+'px">'+esc(x.dept)+'</span>';
-  });
-  if (!list.length) h += '<span class="tp-free">고른 날에는 다른 일정이 없어요</span>';
-  return h + '</div>';
+  if (!days.length) h += '<span class="tp-free none">이용날짜를 고르면 날짜마다 그날 다른 일정이 여기에 보여요</span>';
+  else if (!all.length) h += '<span class="tp-free" style="top:'+(TOP+3)+'px">고른 날에는 다른 일정이 없어요</span>';
+  if (t) h += mineHTML(t.s, t.e, all.some(function(x){ return x.s < t.e && t.s < x.e; }));
+  h += '</div><div class="tp-how">'+(t ? '파란 네모를 끌어 옮기고, 양 끝을 끌어 늘이거나 줄여요.' : '막대의 빈 곳을 끌면 시간이 정해져요.')+' 10분 단위로 맞춰져요.</div>';
+  return h;
+}
+function tpPos(m){ return Math.max(0, Math.min(100, (m - TP_A) / (TP_B - TP_A) * 100)); }
+function mineHTML(a, b, bad){
+  return '<span class="tp-mine'+(bad ? ' bad' : '')+'" data-s="'+a+'" data-e="'+b+'" style="left:'+tpPos(a)+'%;width:'+(tpPos(b)-tpPos(a))+'%">'+
+    '<i class="tp-h l" title="시작 시간"></i><b class="tp-lab">'+hm(a)+'~'+hm(b)+'</b><i class="tp-h r" title="끝 시간"></i></span>';
+}
+var tpDrag = null;
+function tpMin(x, rect){ var m = TP_A + (x - rect.left) / rect.width * (TP_B - TP_A); return Math.round(m / 10) * 10; }
+function tpShow(){ var g = tpDrag; drawMine(g.bar, g.mine, g.s, g.e); }
+function drawMine(bar, el, a, b){
+  el.style.left = tpPos(a) + '%'; el.style.width = (tpPos(b) - tpPos(a)) + '%';
+  el.querySelector('.tp-lab').textContent = hm(a) + '~' + hm(b);
+  var bad = [].some.call(bar.querySelectorAll('.tp-seg'), function(x){ return +x.dataset.s < b && a < +x.dataset.e; });
+  el.classList.toggle('bad', bad);
+  var sum = bar.closest('.tpick') && bar.closest('.tpick').querySelector('.pk-sum'); if (sum) sum.textContent = hm(a) + '~' + hm(b);
+}
+/* 이용시간 칸에 글자로 적는 동안에도 파란 네모가 따라 움직인다 (저장은 칸을 나갈 때) */
+document.getElementById('main').addEventListener('input', function(e){
+  var el = e.target, key = el.dataset && el.dataset.key;
+  if (!key || !/:time$/.test(key)) return;
+  var bar = document.querySelector('.tp-busy[data-row="' + key.replace(/:time$/, '') + '"]'); if (!bar) return;
+  var t = parseTime(el.value), mine = bar.querySelector('.tp-mine');
+  if (!t) { if (mine) mine.style.display = 'none'; return; }
+  if (!mine) { bar.insertAdjacentHTML('beforeend', mineHTML(t.s, t.e)); mine = bar.querySelector('.tp-mine'); }
+  mine.style.display = '';
+  drawMine(bar, mine, Math.max(TP_A, t.s), Math.min(TP_B, t.e));
+});
+document.getElementById('main').addEventListener('pointerdown', function(e){
+  var bar = e.target.closest('.tp-busy'); if (!bar || e.button > 0) return;
+  e.preventDefault();
+  var rect = bar.getBoundingClientRect(), m = tpMin(e.clientX, rect), mine = bar.querySelector('.tp-mine');
+  var mode = e.target.closest('.tp-h.l') ? 'l' : e.target.closest('.tp-h.r') ? 'r' : e.target.closest('.tp-mine') ? 'move' : 'draw';
+  if (!mine) { bar.insertAdjacentHTML('beforeend', mineHTML(m, m + 60)); mine = bar.querySelector('.tp-mine'); }
+  tpDrag = {bar:bar, rect:rect, mine:mine, mode:mode, m0:m, s0:+mine.dataset.s, e0:+mine.dataset.e};
+  tpDrag.s = mode === 'draw' ? Math.min(m, TP_B - 60) : tpDrag.s0;
+  tpDrag.e = mode === 'draw' ? tpDrag.s + 60 : tpDrag.e0;
+  mine.classList.add('drag');
+  try { bar.setPointerCapture(e.pointerId); } catch(err) {}
+  tpShow();
+});
+document.getElementById('main').addEventListener('pointermove', function(e){
+  var g = tpDrag; if (!g) return;
+  var m = Math.max(TP_A, Math.min(TP_B, tpMin(e.clientX, g.rect)));
+  if (g.mode === 'move') { var len = g.e0 - g.s0; g.s = Math.max(TP_A, Math.min(TP_B - len, g.s0 + m - g.m0)); g.e = g.s + len; }
+  else if (g.mode === 'l') { g.s = Math.min(m, g.e0 - 10); g.e = g.e0; }
+  else if (g.mode === 'r') { g.e = Math.max(m, g.s0 + 10); g.s = g.s0; }
+  else if (Math.abs(m - g.m0) >= 10) { g.s = Math.min(m, g.m0); g.e = Math.max(m, g.m0); }
+  tpShow();
+});
+function tpEnd(){
+  var g = tpDrag; if (!g) return; tpDrag = null;
+  setTime(g.bar.dataset.row, hm(g.s) + '~' + hm(g.e));
+}
+document.getElementById('main').addEventListener('pointerup', tpEnd);
+document.getElementById('main').addEventListener('pointercancel', tpEnd);
+/* 시간을 정해 저장 (빈 줄이면 새 줄이 생기고 고르는 칸은 그 줄로) */
+function setTime(rid, val){
+  var row = rowFor(rid, true); if (!row) return;
+  if (rid.indexOf('b:') === 0) { row.time = val; remap = {from:rid+':', to:'r:'+row.id+':'}; openTime = 'r:'+row.id; }
+  else updateRow(row, function(x){ x.time = val; });
+  save(); render();
 }
 function timePick(b){
   var rid = b.dataset.row, row = rowFor(rid, true); if (!row) return;
@@ -801,10 +896,7 @@ function timePick(b){
   var a = st.sh*60 + st.sm;
   if (k.charAt(0) === 's' && (st.eh == null || st.eh*60 + st.em <= a)) { st.eh = st.sh + 1; st.em = st.sm; }
   if (st.eh*60 + st.em <= a) { st.sh = st.eh - 1; st.sm = st.em; }
-  var val = pad(st.sh)+':'+pad(st.sm)+'~'+pad(st.eh)+':'+pad(st.em);
-  if (rid.indexOf('b:') === 0) { row.time = val; remap = {from:rid+':', to:'r:'+row.id+':'}; openTime = 'r:'+row.id; }
-  else updateRow(row, function(x){ x.time = val; });
-  save(); render();
+  setTime(rid, pad(st.sh)+':'+pad(st.sm)+'~'+pad(st.eh)+':'+pad(st.em));
   var f = document.querySelector('[data-act="tp"][data-row="'+openTime+'"][data-k="'+k+'"][data-v="'+v+'"]'); if (f) f.focus();
 }
 
@@ -916,7 +1008,7 @@ function barHTML(){
   var h = '<div class="room">4층 교육장</div>';
   h += admin ? '<div class="who admin"><b>관리자</b><button class="link" data-act="adminExit">나가기</button></div>'
              : '<div class="who"><b>'+esc(DB.me)+'</b><button class="link" data-act="switchDept">바꾸기</button></div>';
-  h += '<div class="nav"><button data-act="prev" aria-label="이전 달">◀</button><span>'+t.y+'년 '+t.m+'월</span><button data-act="next" aria-label="다음 달">▶</button></div>';
+  h += '<div class="nav"><button data-act="prev" aria-label="이전 달">◀</button><button class="ym" data-act="mp" aria-expanded="'+!!mp+'" title="눌러서 달 고르기">'+t.y+'년 '+t.m+'월</button><button data-act="next" aria-label="다음 달">▶</button>'+mpHTML()+'</div>';
   h += '<div class="seg" role="group" aria-label="보기"><button data-act="view" data-v="form" class="'+(view === 'form' ? 'on' : '')+'">신청서</button>'+
        '<button data-act="view" data-v="cal" class="'+(view === 'cal' ? 'on' : '')+'">현황표</button>'+
        (admin ? '<button data-act="view" data-v="dept" class="'+(view === 'dept' ? 'on' : '')+'">부서</button>' : '')+'</div>';
@@ -931,6 +1023,23 @@ function barHTML(){
   else if (!periodOpen()) h += '<span style="font-size:13px;color:#5D636B">'+t.m+'월 신청 기간이 아니에요 · 새로 적은 일정은 관리자 승인 후 반영돼요</span>';
   return h;
 }
+/* 달 고르기: 위쪽 'N년 N월'을 누르면 열두 달이 펼쳐짐 */
+var mp = null;   // {y: 보고 있는 해}
+function mpHTML(){
+  if (!mp) return '';
+  var now = todayStr().slice(0, 7), h = '<div class="mpick" role="dialog" aria-label="달 고르기"><div class="mp-y">'+
+    '<button data-act="mpY" data-v="-1" aria-label="작년">◀</button><b>'+mp.y+'년</b><button data-act="mpY" data-v="1" aria-label="내년">▶</button></div><div class="mp-g">';
+  for (var m = 1; m <= 12; m++) {
+    var k = mp.y + '-' + pad(m);
+    h += '<button data-act="mpGo" data-v="'+k+'" class="'+(k === cur ? 'on' : '')+(k === now ? ' now' : '')+'">'+m+'월</button>';
+  }
+  return h + '</div><button class="link mp-today" data-act="mpGo" data-v="'+now+'">이번 달로</button></div>';
+}
+function goMonth(k){
+  openPick = null; openTime = null; mp = null; cur = k; savePrefs();
+  return queue.then(function(){ return loadMonth(cur); }).then(render, loadFailed);
+}
+
 function render(){
   dCache = {}; ORIG = {};
   var ae = document.activeElement, fk = ae && ae.dataset ? (ae.dataset.key || ae.dataset.dk) : null;
@@ -1206,6 +1315,7 @@ function goPending(){
 }
 document.addEventListener('click', function(e){
   if (askFn && !e.target.closest('#ask')) closeAsk();
+  if (mp && !e.target.closest('.mpick') && !e.target.closest('[data-act="mp"]')) { mp = null; render(); }
   var b = e.target.closest('button[data-act]');
   if (openPick && !e.target.closest('.pickrow') && !(b && b.dataset.act === 'pick')) { openPick = null; if (!b) return render(); }
   if (openTime && !e.target.closest('.pickrow') && !(e.target.dataset && /:time$/.test(e.target.dataset.key || ''))) { openTime = null; if (!b) return render(); }
@@ -1243,9 +1353,10 @@ document.addEventListener('click', function(e){
       var be = document.querySelector('.blk[data-key="'+b.dataset.key+'"]'); if (!be) return;
       return ask({text: m+'월 '+be.dataset.d+'일 이 일정만 뺄까요? 다른 날은 그대로예요.'+(needsApproval() ? ' 관리자가 승인하면 빠져요.' : ''), okLabel:'이날만 빼기', danger:true, at:b,
         onOk:function(){ var el2 = document.querySelector('.blk[data-key="'+b.dataset.key+'"]'); if (el2) applyBlock(el2, ''); }});
-    case 'prev': case 'next':
-      openPick = null; cur = shiftMonth(cur, act === 'prev' ? -1 : 1); savePrefs();
-      return queue.then(function(){ return loadMonth(cur); }).then(render, loadFailed);
+    case 'prev': case 'next': return goMonth(shiftMonth(cur, act === 'prev' ? -1 : 1));
+    case 'mp': mp = mp ? null : {y: ym().y}; return render();
+    case 'mpY': mp.y += +b.dataset.v; return render();
+    case 'mpGo': return goMonth(b.dataset.v);
     case 'view': view = b.dataset.v; return commit();
     case 'print': preparePrint(); return setTimeout(function(){ window.print(); }, 60);
     case 'pend': return goPending();
