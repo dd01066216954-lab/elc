@@ -198,6 +198,7 @@ function cleanBlk(b) {
   if (!b || typeof b !== 'object') throw new Bad('보낸 칸이 비어 있어요.');
   const out = { dept: str(b.dept), prog: str(b.prog), time: str(b.time), half: b.half === 'pm' ? 'pm' : 'am' };
   if (b.note) out.note = str(b.note); // 기타 (현황표에 *로 나옴)
+  if (b.rowId && ID.test(String(b.rowId))) out.rowId = String(b.rowId); // 신청서 줄에서 그날만 옮긴 칸
   return out;
 }
 function cleanSel(s) {

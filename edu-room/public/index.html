@@ -202,7 +202,7 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 .tp-tick{position:absolute;top:1px;font-size:10.5px;color:var(--muted);transform:translateX(-50%)}
 .tp-tick:first-child{transform:none}
 .tp-seg{position:absolute;height:20px;border-radius:3px;font-size:11px;font-weight:700;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:default}
-.tp-mine{position:absolute;top:16px;bottom:0;background:rgba(47,111,208,.16);border:2px solid #2F6FD0;border-radius:4px;z-index:2;cursor:grab;display:flex;align-items:center;justify-content:center;min-width:6px}
+.tp-mine{position:absolute;background:rgba(47,111,208,.16);border:2px solid #2F6FD0;border-radius:4px;z-index:2;cursor:grab;display:flex;align-items:center;justify-content:center;min-width:6px}
 .tp-mine.drag{cursor:grabbing;box-shadow:0 2px 10px rgba(47,111,208,.35)}
 .tp-mine.bad{border-color:var(--red);background:rgba(198,40,40,.14)}
 .tp-mine.bad .tp-lab{color:var(--red)}
@@ -213,7 +213,10 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 .tp-mine.bad .tp-h::after{background:var(--red)}
 .tp-tick,.tp-free{pointer-events:none}
 .tp-free.none{color:var(--muted)}
-.tp-day{position:absolute;left:-64px;right:0;border-top:1px solid #E3E6EA;font-size:11.5px;font-weight:700;color:var(--muted);line-height:22px;padding-left:2px;pointer-events:none}
+.tp-day{position:absolute;left:-64px;right:0;border-top:1px solid #E3E6EA;font-size:11.5px;color:#9AA0A8;line-height:22px;padding-left:2px;pointer-events:none}
+.tp-day.on{color:var(--ink);font-weight:700}
+.tp-day.all{color:#1F4F9A;font-weight:700;line-height:26px;background:rgba(47,111,208,.05);border-bottom:1px solid #C5CAD2}
+.tp-mine.pend{border-style:dashed}
 .tp-how{margin:2px 0 0 64px;font-size:12px;color:var(--muted)}
 .tp-free{position:absolute;top:20px;left:0;font-size:12px;color:#1E6B3A}
 .tp-side{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-left:44px}
@@ -620,7 +623,7 @@ function itemsFor(d, mode){
     var b = o.blk, pk = o.pend ? o.pend.kind : null;
     if (mode === 'print') { if (pk === 'new') return; if (pk) b = o.pend.prev; }
     var t = parseTime(b.time);
-    res.push({src:'op', id:o.id, dept:b.dept, prog:b.prog, note:b.note||'', time:t ? t.label : (b.time||''),
+    res.push({src:'op', id:o.id, rowId:b.rowId||null, dept:b.dept, prog:b.prog, note:b.note||'', time:t ? t.label : (b.time||''),
               s:t ? t.s : null, e:t ? t.e : null, pend: mode === 'screen' ? pk : null, half:b.half||'am'});
   });
   /* 겹치면 양보: 다른 일정 시간만큼 잘라 내고, 30분보다 짧게 남은 조각은 버림 */
@@ -793,74 +796,113 @@ function timePickHTML(rid, r, span){
 /* 고른 날짜에 다른 일정이 쓰는 시간 (하루라도 겹치면 표시) */
 /* 막대: 고른 날짜에 다른 일정이 쓰는 시간 + 내 시간(파란 네모, 끌어서 옮기기·늘이기, 빈 곳을 끌면 새로) */
 function busyHTML(rid, r, t){
-  /* 고른 날짜마다 한 줄 (왼쪽에 '14일(수)'), 그날 다른 일정을 부서 색으로. 파란 네모는 모든 줄에 걸쳐 내 시간 */
-  var days = r ? selDays(r.sel) : [], LANE = 22, TOP = 18;
-  var rows = days.map(function(d){
-    var list = [], lanes = [];
+  /* 막대: 맨 위 '매번' 줄(모든 날 시간) + 이번 달 평일마다 한 줄 (왼쪽에 '14일(수)').
+     날짜 줄에는 그날 다른 일정(부서 색)과 내 일정(파란 네모). 날짜 줄의 네모를 끌면 그날만 옮겨짐 */
+  var LANE = 22, TOP = 18, mineDays = r ? selDays(r.sel) : [], n = dim(), rows = [];
+  for (var d = 1; d <= n; d++) {
+    var w = dow(d); if (w === 0 || w === 6 || holName(d)) continue;
+    var list = [], mine = [], lanes = [];
     itemsFor(d, 'screen').forEach(function(x){
-      if (x.rowId === r.id || x.s == null || x.pend === 'new' || x.pend === 'del' || x.pend === 'remove') return;
+      if (x.s == null || x.pend === 'del' || x.pend === 'remove') return;
+      if (r && x.rowId === r.id) {   // 내 일정: 신청서 줄 그대로인 날, 또는 그날만 옮긴 칸
+        if (x.src === 'row') { if (!mine.some(function(m){ return m.kind === 'row'; })) mine.push({kind:'row', id:r.id, s:t ? t.s : x.s, e:t ? t.e : x.e}); }
+        else mine.push({kind:'op', id:x.id, s:x.s, e:x.e, pend:x.pend});
+        return;
+      }
+      if (x.pend === 'new') return;
       list.push({dept:x.dept, prog:x.prog, s:x.s, e:x.e});
     });
     list.sort(function(a,b){ return a.s - b.s; }).forEach(function(x){
       var i = 0; while (lanes[i] != null && lanes[i] > x.s) i++;
       lanes[i] = x.e; x.lane = i;
     });
-    return {d:d, list:list, n:Math.max(1, lanes.length)};
-  });
-  var total = rows.reduce(function(a, x){ return a + x.n; }, 0) || 2;
-  var h = '<div class="tp-busy" data-row="'+rid+'" style="height:'+(total*LANE+TOP+2)+'px">';
+    rows.push({d:d, list:list, mine:mine, n:Math.max(1, lanes.length)});
+  }
+  var y = TOP + LANE + 4, h = '';
+  rows.forEach(function(rw){ rw.y = y; y += rw.n * LANE; });
+  h += '<div class="tp-busy" data-row="'+rid+'" data-days="'+mineDays.join(',')+'" style="height:'+(y+2)+'px">';
   for (var x = 8; x <= 19; x++) h += '<span class="tp-tick" style="left:'+tpPos(x*60)+'%">'+hLabel(x)+'</span>';
-  var y = TOP, all = [];
+  h += '<span class="tp-day all" data-d="0" style="top:'+TOP+'px;height:'+(LANE+4)+'px">매번</span>';
   rows.forEach(function(rw){
-    h += '<span class="tp-day" style="top:'+y+'px;height:'+(rw.n*LANE)+'px">'+rw.d+'일('+'일월화수목금토'[dow(rw.d)]+')</span>';
+    var on = mineDays.indexOf(rw.d) >= 0 || rw.mine.length;
+    h += '<span class="tp-day'+(on ? ' on' : '')+'" data-d="'+rw.d+'" style="top:'+rw.y+'px;height:'+(rw.n*LANE)+'px">'+rw.d+'일('+'일월화수목금토'[dow(rw.d)]+')</span>';
     rw.list.forEach(function(x){
       var tip = rw.d+'일 '+x.dept+(x.prog ? ' <'+x.prog+'>' : '')+' '+hm(x.s)+'~'+hm(x.e);
-      h += '<span class="tp-seg '+colorOf(x.dept)+'" data-s="'+x.s+'" data-e="'+x.e+'" title="'+esc(tip)+'" style="left:'+tpPos(x.s)+'%;width:'+(tpPos(x.e)-tpPos(x.s))+'%;top:'+(y+1+x.lane*LANE)+'px">'+esc(x.dept)+'</span>';
-      all.push(x);
+      h += '<span class="tp-seg '+colorOf(x.dept)+'" data-d="'+rw.d+'" data-s="'+x.s+'" data-e="'+x.e+'" title="'+esc(tip)+'" style="left:'+tpPos(x.s)+'%;width:'+(tpPos(x.e)-tpPos(x.s))+'%;top:'+(rw.y+1+x.lane*LANE)+'px">'+esc(x.dept)+'</span>';
     });
-    y += rw.n * LANE;
+    rw.mine.forEach(function(m){
+      var bad = rw.list.some(function(x){ return x.s < m.e && m.s < x.e; });
+      h += mineHTML(m.s, m.e, bad, {kind:m.kind, id:m.id, d:rw.d, top:rw.y, h:rw.n*LANE, pend:m.pend});
+    });
   });
-  if (!days.length) h += '<span class="tp-free none">이용날짜를 고르면 날짜마다 그날 다른 일정이 여기에 보여요</span>';
-  else if (!all.length) h += '<span class="tp-free" style="top:'+(TOP+3)+'px">고른 날에는 다른 일정이 없어요</span>';
-  if (t) h += mineHTML(t.s, t.e, all.some(function(x){ return x.s < t.e && t.s < x.e; }));
-  h += '</div><div class="tp-how">'+(t ? '파란 네모를 끌어 옮기고, 양 끝을 끌어 늘이거나 줄여요.' : '막대의 빈 곳을 끌면 시간이 정해져요.')+' 10분 단위로 맞춰져요.</div>';
+  if (t) {   // 매번 네모: 신청서 줄 그대로인 날 중 하루라도 겹치면 빨갛게
+    var allBad = rows.some(function(rw){ return rw.mine.some(function(m){ return m.kind === 'row'; }) && rw.list.some(function(x){ return x.s < t.e && t.s < x.e; }); });
+    h += mineHTML(t.s, t.e, allBad, {kind:'all', d:0, top:TOP, h:LANE+4});
+  }
+  h += '</div><div class="tp-how">'+(t
+    ? '맨 위 <b>매번</b> 네모를 끌면 모든 날 시간이 바뀌어요. 날짜 줄의 네모를 옆으로 끌면 <b>그날만</b> 시간이, 위아래로 끌면 <b>다른 날로</b> 옮겨져요.'
+    : '<b>매번</b> 줄의 빈 곳을 끌면 시간이 정해져요.')+' 날짜 줄의 빈 곳을 끌면 그날 하루만 더해져요. 10분 단위.</div>';
   return h;
 }
 function tpPos(m){ return Math.max(0, Math.min(100, (m - TP_A) / (TP_B - TP_A) * 100)); }
-function mineHTML(a, b, bad){
-  return '<span class="tp-mine'+(bad ? ' bad' : '')+'" data-s="'+a+'" data-e="'+b+'" style="left:'+tpPos(a)+'%;width:'+(tpPos(b)-tpPos(a))+'%">'+
+function mineHTML(a, b, bad, o){
+  o = o || {kind:'all', d:0, top:18, h:26};
+  return '<span class="tp-mine'+(o.kind === 'all' ? ' all' : '')+(bad ? ' bad' : '')+(o.pend ? ' pend' : '')+'" data-kind="'+o.kind+'" data-id="'+(o.id||'')+'" data-d="'+o.d+'" data-s="'+a+'" data-e="'+b+'"'+
+    ' style="left:'+tpPos(a)+'%;width:'+(tpPos(b)-tpPos(a))+'%;top:'+o.top+'px;height:'+o.h+'px"'+(o.pend ? ' title="승인 대기"' : '')+'>'+
     '<i class="tp-h l" title="시작 시간"></i><b class="tp-lab">'+hm(a)+'~'+hm(b)+'</b><i class="tp-h r" title="끝 시간"></i></span>';
 }
 var tpDrag = null;
 function tpMin(x, rect){ var m = TP_A + (x - rect.left) / rect.width * (TP_B - TP_A); return Math.round(m / 10) * 10; }
-function tpShow(){ var g = tpDrag; drawMine(g.bar, g.mine, g.s, g.e); }
-function drawMine(bar, el, a, b){
+function tpRowAt(bar, y){   // 화면 높이 → 날짜 줄 (매번 줄은 0)
+  var best = null;
+  [].forEach.call(bar.querySelectorAll('.tp-day'), function(el){
+    var r = el.getBoundingClientRect();
+    if (y >= r.top && y < r.bottom) best = el;
+  });
+  return best;
+}
+function tpShow(){
+  var g = tpDrag;
+  if (g.dayEl) { g.mine.style.top = g.dayEl.style.top; g.mine.style.height = g.dayEl.style.height; }
+  drawMine(g.bar, g.mine, g.s, g.e, g.d);
+}
+function drawMine(bar, el, a, b, d){
   el.style.left = tpPos(a) + '%'; el.style.width = (tpPos(b) - tpPos(a)) + '%';
   el.querySelector('.tp-lab').textContent = hm(a) + '~' + hm(b);
-  var bad = [].some.call(bar.querySelectorAll('.tp-seg'), function(x){ return +x.dataset.s < b && a < +x.dataset.e; });
+  var days = d ? [d] : (bar.dataset.days || '').split(',').map(Number);
+  var bad = [].some.call(bar.querySelectorAll('.tp-seg'), function(x){ return days.indexOf(+x.dataset.d) >= 0 && +x.dataset.s < b && a < +x.dataset.e; });
   el.classList.toggle('bad', bad);
-  var sum = bar.closest('.tpick') && bar.closest('.tpick').querySelector('.pk-sum'); if (sum) sum.textContent = hm(a) + '~' + hm(b);
+  if (!d) { var sum = bar.closest('.tpick') && bar.closest('.tpick').querySelector('.pk-sum'); if (sum) sum.textContent = hm(a) + '~' + hm(b); }
 }
-/* 이용시간 칸에 글자로 적는 동안에도 파란 네모가 따라 움직인다 (저장은 칸을 나갈 때) */
+/* 이용시간 칸에 글자로 적는 동안에도 '매번' 네모가 따라 움직인다 (저장은 칸을 나갈 때) */
 document.getElementById('main').addEventListener('input', function(e){
   var el = e.target, key = el.dataset && el.dataset.key;
   if (!key || !/:time$/.test(key)) return;
   var bar = document.querySelector('.tp-busy[data-row="' + key.replace(/:time$/, '') + '"]'); if (!bar) return;
-  var t = parseTime(el.value), mine = bar.querySelector('.tp-mine');
+  var t = parseTime(el.value), mine = bar.querySelector('.tp-mine.all');
   if (!t) { if (mine) mine.style.display = 'none'; return; }
-  if (!mine) { bar.insertAdjacentHTML('beforeend', mineHTML(t.s, t.e)); mine = bar.querySelector('.tp-mine'); }
+  if (!mine) { bar.insertAdjacentHTML('beforeend', mineHTML(t.s, t.e)); mine = bar.querySelector('.tp-mine.all'); }
   mine.style.display = '';
-  drawMine(bar, mine, Math.max(TP_A, t.s), Math.min(TP_B, t.e));
+  drawMine(bar, mine, Math.max(TP_A, t.s), Math.min(TP_B, t.e), 0);
 });
 document.getElementById('main').addEventListener('pointerdown', function(e){
   var bar = e.target.closest('.tp-busy'); if (!bar || e.button > 0) return;
   e.preventDefault();
-  var rect = bar.getBoundingClientRect(), m = tpMin(e.clientX, rect), mine = bar.querySelector('.tp-mine');
-  var mode = e.target.closest('.tp-h.l') ? 'l' : e.target.closest('.tp-h.r') ? 'r' : e.target.closest('.tp-mine') ? 'move' : 'draw';
-  if (!mine) { bar.insertAdjacentHTML('beforeend', mineHTML(m, m + 60)); mine = bar.querySelector('.tp-mine'); }
-  tpDrag = {bar:bar, rect:rect, mine:mine, mode:mode, m0:m, s0:+mine.dataset.s, e0:+mine.dataset.e};
-  tpDrag.s = mode === 'draw' ? Math.min(m, TP_B - 60) : tpDrag.s0;
-  tpDrag.e = mode === 'draw' ? tpDrag.s + 60 : tpDrag.e0;
+  var rect = bar.getBoundingClientRect(), m = tpMin(e.clientX, rect), mine = e.target.closest('.tp-mine');
+  var mode = e.target.closest('.tp-h.l') ? 'l' : e.target.closest('.tp-h.r') ? 'r' : mine ? 'move' : 'draw';
+  var g = {bar:bar, rect:rect, mode:mode, m0:m};
+  if (!mine) {   // 빈 곳: 매번 줄이면 시간 정하기, 날짜 줄이면 그날 하루 더하기
+    var row = tpRowAt(bar, e.clientY); if (!row) return;
+    var d = +row.dataset.d;
+    if (d && bar.dataset.row.indexOf('b:') === 0) return;   // 아직 없는 줄: 먼저 매번 시간부터
+    bar.insertAdjacentHTML('beforeend', mineHTML(m, m + 60, false, d ? {kind:'new', d:d, top:parseFloat(row.style.top), h:parseFloat(row.style.height)} : null));
+    mine = bar.lastElementChild;
+  }
+  g.mine = mine; g.kind = mine.dataset.kind; g.id = mine.dataset.id; g.d0 = g.d = +mine.dataset.d;
+  g.s0 = +mine.dataset.s; g.e0 = +mine.dataset.e;
+  g.s = mode === 'draw' ? Math.min(m, TP_B - 60) : g.s0;
+  g.e = mode === 'draw' ? g.s + 60 : g.e0;
+  tpDrag = g;
   mine.classList.add('drag');
   try { bar.setPointerCapture(e.pointerId); } catch(err) {}
   tpShow();
@@ -868,7 +910,13 @@ document.getElementById('main').addEventListener('pointerdown', function(e){
 document.getElementById('main').addEventListener('pointermove', function(e){
   var g = tpDrag; if (!g) return;
   var m = Math.max(TP_A, Math.min(TP_B, tpMin(e.clientX, g.rect)));
-  if (g.mode === 'move') { var len = g.e0 - g.s0; g.s = Math.max(TP_A, Math.min(TP_B - len, g.s0 + m - g.m0)); g.e = g.s + len; }
+  if (g.mode === 'move') {
+    var len = g.e0 - g.s0; g.s = Math.max(TP_A, Math.min(TP_B - len, g.s0 + m - g.m0)); g.e = g.s + len;
+    if (g.kind !== 'all') {   // 날짜 줄의 네모는 위아래로 다른 날짜 줄에
+      var row = tpRowAt(g.bar, e.clientY);
+      if (row && +row.dataset.d) { g.d = +row.dataset.d; g.dayEl = row; }
+    }
+  }
   else if (g.mode === 'l') { g.s = Math.min(m, g.e0 - 10); g.e = g.e0; }
   else if (g.mode === 'r') { g.e = Math.max(m, g.s0 + 10); g.s = g.s0; }
   else if (Math.abs(m - g.m0) >= 10) { g.s = Math.min(m, g.m0); g.e = Math.max(m, g.m0); }
@@ -876,7 +924,10 @@ document.getElementById('main').addEventListener('pointermove', function(e){
 });
 function tpEnd(){
   var g = tpDrag; if (!g) return; tpDrag = null;
-  setTime(g.bar.dataset.row, hm(g.s) + '~' + hm(g.e));
+  var val = hm(g.s) + '~' + hm(g.e), rid = g.bar.dataset.row;
+  if (g.kind === 'all') return setTime(rid, val);
+  if (g.kind !== 'new' && g.d === g.d0 && g.s === g.s0 && g.e === g.e0) return render();
+  moveDay(rid, g.kind, g.id, g.d0, g.d, g.s, g.e);
 }
 document.getElementById('main').addEventListener('pointerup', tpEnd);
 document.getElementById('main').addEventListener('pointercancel', tpEnd);
@@ -885,6 +936,21 @@ function setTime(rid, val){
   var row = rowFor(rid, true); if (!row) return;
   if (rid.indexOf('b:') === 0) { row.time = val; remap = {from:rid+':', to:'r:'+row.id+':'}; openTime = 'r:'+row.id; }
   else updateRow(row, function(x){ x.time = val; });
+  save(); render();
+}
+/* 그날만 옮기기 (현황표에서 그날만 고치는 것과 같음): 원래 날은 빼고, 새 날에 하루짜리 칸.
+   kind 'row' = 신청서 줄 그대로인 날, 'op' = 이미 그날만 옮긴 칸, 'new' = 하루 더하기 */
+function moveDay(rid, kind, id, d0, d, s, e){
+  var row = rowFor(rid); if (!row) return;
+  var mo = M(), conf = needsApproval();
+  if (kind === 'row') mo.ops.push({id:uid(), type:'remove', rowId:row.id, d:d0, pend: conf ? {kind:'new'} : null});
+  if (kind === 'op') {
+    var o = mo.ops.find(function(x){ return x.id === id; }); if (!o) return;
+    if (!conf || (o.pend && o.pend.kind === 'new')) mo.ops.splice(mo.ops.indexOf(o), 1);
+    else o.pend = {kind:'del', prev: o.pend ? o.pend.prev : o.blk};
+  }
+  mo.ops.push({id:uid(), type:'add', d:d, pend: conf ? {kind:'new'} : null,
+    blk:{dept:row.dept, prog:row.prog, time:hm(s)+'~'+hm(e), note:row.note||'', half: s >= 720 ? 'pm' : 'am', rowId:row.id}});
   save(); render();
 }
 function timePick(b){
@@ -1165,7 +1231,7 @@ function applyBlock(el, text){
     if (p) { p.half = half; mo.ops.push({id:uid(), type:'add', d:d, blk:p, pend: conf ? {kind:'new'} : null}); }
   } else {
     var o = mo.ops.find(function(x){ return x.id === el.dataset.id; }); if (!o) return;
-    if (p) p.half = o.blk.half;
+    if (p) { p.half = o.blk.half; if (o.blk.rowId) p.rowId = o.blk.rowId; }
     if (!p) { if (!conf || (o.pend && o.pend.kind === 'new')) mo.ops.splice(mo.ops.indexOf(o),1); else o.pend = {kind:'del', prev: o.pend ? o.pend.prev : o.blk}; }
     else if (o.pend) o.blk = p;
     else if (conf) { o.pend = {kind:'edit', prev:o.blk}; o.blk = p; }
