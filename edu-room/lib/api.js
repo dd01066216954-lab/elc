@@ -106,7 +106,7 @@ async function monthPayload(env, ym) {
     db.prepare('SELECT confirmed, imported_from, imported_n, open_from, open_to FROM months WHERE room = ? AND ym = ?').bind(ROOM, ym).first(),
     db.prepare('SELECT * FROM rows WHERE room = ? AND ym = ? ORDER BY rowid').bind(ROOM, ym).all(),
     db.prepare('SELECT * FROM ops WHERE room = ? AND ym = ? ORDER BY rowid').bind(ROOM, ym).all(),
-    db.prepare('SELECT name, color_idx, pin_hash FROM depts WHERE room = ? ORDER BY sort, id').bind(ROOM).all(),
+    db.prepare('SELECT name, color_idx, pin_hash, manager FROM depts WHERE room = ? ORDER BY sort, id').bind(ROOM).all(),
     db.prepare("SELECT key, value FROM settings WHERE room = ? AND key IN ('rules', 'admin_pin_hash')").bind(ROOM).all(),
     // 이용시간 빠른 선택에 쓰는, 다른 달에 부서마다 쓴 시간
     db.prepare('SELECT dept, time, COUNT(*) AS n FROM rows WHERE room = ? AND ym <> ? AND time <> \'\' GROUP BY dept, time').bind(ROOM, ym).all(),
@@ -120,7 +120,7 @@ async function monthPayload(env, ym) {
     period: mo.open_from || mo.open_to ? { from: mo.open_from || '', to: mo.open_to || '' } : null,
     rows: rows.results.map(rowOut),
     ops: ops.results.map(opOut),
-    depts: depts.results.map((d) => ({ name: d.name, ci: d.color_idx, hasPin: !!d.pin_hash })),
+    depts: depts.results.map((d) => ({ name: d.name, ci: d.color_idx, hasPin: !!d.pin_hash, manager: d.manager || '' })),
     rules: set.rules || '',
     adminSet: !!set.admin_pin_hash,
     times: times.results,
@@ -393,7 +393,7 @@ async function approve(env, { kind, id, ok }) {
 }
 
 /* ===== 부서 / 비밀번호 / 규칙 ===== */
-async function changeDept(db, { action, name, to, pin }) {
+async function changeDept(db, { action, name, to, pin, manager }) {
   name = str(name).trim();
   if (action === 'add') {
     if (!name) throw new Bad('부서 이름을 적어 주세요.');
@@ -416,6 +416,9 @@ async function changeDept(db, { action, name, to, pin }) {
       db.prepare("UPDATE ops SET blk = json_set(blk, '$.dept', ?2) WHERE room = ?3 AND json_extract(blk, '$.dept') = ?1").bind(name, to, ROOM),
       db.prepare("UPDATE ops SET pend_prev = json_set(pend_prev, '$.dept', ?2) WHERE room = ?3 AND json_extract(pend_prev, '$.dept') = ?1").bind(name, to, ROOM),
     ]);
+  } else if (action === 'manager') {
+    // 부서 담당자 (한 부서 한 명, 이름만). 일정이 겹칠 때 안내에 나온다
+    await db.prepare('UPDATE depts SET manager = ? WHERE room = ? AND name = ?').bind(str(manager).trim().slice(0, 40) || null, ROOM, name).run();
   } else if (action === 'pin') {
     // 비밀번호를 바꾸거나 없애면 그 부서로 들어가 있던 기기는 다시 들어와야 한다 (토큰에 비밀번호 표시가 들어 있음)
     pin = str(pin).trim();

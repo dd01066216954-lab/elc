@@ -243,7 +243,10 @@ test('처음 여는 다음 달은 매주 반복 줄만 가져오고, 두 번 가
 
 test('부서 더하기·빼기, 이상한 값은 막는다', async () => {
   await call('/depts', { method: 'PUT', body: { action: 'add', name: '새부서' }, as: 'admin' });
-  assert.deepEqual((await month()).depts.at(-1), { name: '새부서', ci: 0, hasPin: false });
+  assert.deepEqual((await month()).depts.at(-1), { name: '새부서', ci: 0, hasPin: false, manager: '' });
+  await call('/depts', { method: 'PUT', body: { action: 'manager', name: '새부서', manager: ' 김민수 ' }, as: 'admin' });
+  assert.equal((await month()).depts.at(-1).manager, '김민수');
+  assert.equal((await call('/depts', { method: 'PUT', body: { action: 'manager', name: '새부서', manager: '해킹' }, as: 'hw' })).status, 403);
   assert.equal((await call('/depts', { method: 'PUT', body: { action: 'rename', name: '새부서', to: '자립지원' }, as: 'admin' })).status, 409);
   await call('/depts', { method: 'PUT', body: { action: 'remove', name: '새부서' }, as: 'admin' });
   assert.equal((await month()).depts.length, 5);

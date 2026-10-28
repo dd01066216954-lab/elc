@@ -226,6 +226,7 @@ table.mng{width:100%;max-width:640px;margin:0 auto;border-collapse:collapse;bord
 .mng .pin{display:flex;align-items:center}
 .mng .pin input{flex:1;min-width:0}
 .mng .pin .link{flex:none;margin-right:6px}
+.title .mgr{font-size:.7em;font-weight:500;color:var(--muted)}
 .mng .chip{display:block;width:28px;height:20px;border-radius:4px;margin:0 auto}
 .mng-note{max-width:640px;margin:12px auto 0;font-size:13px;color:var(--muted);line-height:1.6}
 .mng-admin{max-width:640px;margin:26px auto 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -507,6 +508,8 @@ function colorOf(name){
   var h = 0; for (var i = 0; i < (name||'').length; i++) h = (h*31 + name.charCodeAt(i)) >>> 0;
   return CLS[6 + h % 3];
 }
+function mgrOf(name){ var d = deptOf(name); return d && d.manager || ''; }
+function deptLabel(name){ var m = mgrOf(name); return name + (m ? ' '+m : ''); }   // 겹침 안내: '활동지원 김민수'
 function deptRank(name){ var i = DB.depts.findIndex(function(x){ return x.name === name; }); return i < 0 ? 99 : i; }
 function canEdit(dept){ return admin || (DB.me && dept === DB.me); }
 function needsApproval(){ return !admin && (M().confirmed || !periodOpen()); }
@@ -637,7 +640,7 @@ function blockHTML(x, d, mode){
   }
   if (x.adj) {
     var h0 = '<div class="blk ed lock '+c+(x.ovWith.length ? ' ov' : '')+'" title="다른 일정 때문에 자동으로 줄어든 시간이에요">'+esc(blockText(x))+'</div>';
-    if (x.ovWith.length) h0 += '<div class="ovnote">겹침: '+esc(uniq(x.ovWith).join('·'))+'</div>';
+    if (x.ovWith.length) h0 += '<div class="ovnote">겹침: '+esc(uniq(x.ovWith).map(deptLabel).join('·'))+'</div>';
     return h0;
   }
   var key = x.src+':'+x.id+':'+d, txt = blockText(x), mine = canEdit(x.dept);
@@ -646,7 +649,7 @@ function blockHTML(x, d, mode){
     (mine ? ' contenteditable="true" spellcheck="false"' : ' title="다른 부서 일정이라 볼 수만 있어요"')+
     ' data-key="'+key+'" data-src="'+x.src+'" data-id="'+x.id+'" data-d="'+d+'" data-dept="'+esc(x.dept)+'">'+esc(txt)+'</div>';
   if (mine) h = '<div class="bwrap">'+h+'<button class="bdel" data-act="delBlk" data-key="'+key+'" aria-label="이날만 빼기" title="이날만 빼기">×</button></div>';
-  if (x.ovWith.length) h += '<div class="ovnote">겹침: '+esc(uniq(x.ovWith).join('·'))+'</div>';
+  if (x.ovWith.length) h += '<div class="ovnote">겹침: '+esc(uniq(x.ovWith).map(deptLabel).join('·'))+'</div>';
   return h;
 }
 
@@ -812,10 +815,13 @@ function visibleRows(mode){
 }
 function formHTML(mode){
   var t = ym(), scr = mode === 'screen';
-  var cols = admin ? ['dept','person','prog','dates','time','note'] : ['person','prog','dates','time','note'];
+  var cols = scr ? (admin ? ['dept','prog','dates','time','note'] : ['prog','dates','time','note'])
+                  : (admin ? ['dept','person','prog','dates','time','note'] : ['person','prog','dates','time','note']);
   var NAMES = {dept:'부서명', person:'담당자', prog:'프로그램명', dates:'이용날짜', time:'이용시간', note:'기타'};
-  var WID = admin ? ['52px','15%','10%','17%','21%','15%',''] : ['52px','12%','20%','24%','17%',''];
-  var h = '<h1 class="title">4층 교육장 이용 신청서 (<em>'+t.m+'월</em>)'+(!admin ? ' · '+esc(DB.me) : '')+'</h1>';
+  var WID = scr ? (admin ? ['52px','14%','22%','24%','17%',''] : ['52px','26%','28%','19%',''])
+                : (admin ? ['52px','15%','10%','17%','21%','15%',''] : ['52px','12%','20%','24%','17%','']);
+  var my = !admin && mgrOf(DB.me);
+  var h = '<h1 class="title">4층 교육장 이용 신청서 (<em>'+t.m+'월</em>)'+(!admin ? ' · '+esc(DB.me)+(my ? ' <span class="mgr">(담당 '+esc(my)+')</span>' : '') : '')+'</h1>';
   h += '<div class="rules"><div class="rh">교육장 이용 규칙</div><div class="rb"'+(scr && admin ? ' contenteditable="true" spellcheck="false" data-key="rules" id="rulesBox"' : '')+'>'+esc(DB.rules)+'</div></div>';
   h += periodHTML(scr);
   h += '<table class="form"><colgroup>'+WID.map(function(w){ return '<col'+(w ? ' style="width:'+w+'"' : '')+'>'; }).join('')+(scr ? '<col style="width:64px">' : '')+'</colgroup>'+
@@ -828,7 +834,7 @@ function formHTML(mode){
     var rid = r ? 'r:'+r.id : 'b:'+i;
     h += '<tr'+(pk ? ' class="pdrow'+(pk === 'del' ? ' delrow' : '')+'"' : '')+'><td class="no">'+(i+1)+'</td>';
     cols.forEach(function(f){
-      var v = r ? (f === 'dates' ? selText(r.sel) : (r[f]||'')) : '';
+      var v = r ? (f === 'dates' ? selText(r.sel) : f === 'person' ? (mgrOf(r.dept) || r.person || '') : (r[f]||'')) : '';
       if (!scr) { h += '<td>'+esc(v)+'</td>'; return; }
       if (f === 'note') {
         var yk = rid+':yieldOk';
@@ -841,7 +847,8 @@ function formHTML(mode){
         var st = r ? selText(r.sel) : '';
         h += '<td><button class="datecell'+(st ? '' : ' empty')+(openPick === rid ? ' open' : '')+'" data-act="pick" data-row="'+rid+'" data-key="'+rid+':dates" aria-expanded="'+(openPick === rid)+'">'+
              (st ? esc(st) : '눌러서 날짜 고르기')+'</button>';
-        if (r && ov[r.id]) h += '<div class="hint bad">겹침: '+ov[r.id].map(function(o){ return o.d+'일('+uniq(o.w).join('·')+')'; }).join(', ')+'</div>';
+        if (r && ov[r.id]) h += '<div class="hint bad">겹침: '+esc(ov[r.id].map(function(o){ return o.d+'일('+uniq(o.w).map(deptLabel).join('·')+')'; }).join(', '))+'</div>'+
+                               '<div class="hint">담당자끼리 시간을 맞춰 주세요</div>';
         h += '</td>';
         return;
       }
@@ -868,15 +875,16 @@ function formHTML(mode){
 
 /* ---------------- 부서 관리 (관리자) ---------------- */
 function deptHTML(){
-  var h = '<h1 class="title">부서와 비밀번호</h1><table class="mng"><colgroup><col style="width:60px"><col><col style="width:40%"></colgroup>'+
-          '<thead><tr><th>색</th><th>부서명</th><th>부서 비밀번호</th></tr></thead><tbody>';
+  var h = '<h1 class="title">부서와 비밀번호</h1><table class="mng"><colgroup><col style="width:60px"><col><col style="width:24%"><col style="width:36%"></colgroup>'+
+          '<thead><tr><th>색</th><th>부서명</th><th>담당자</th><th>부서 비밀번호</th></tr></thead><tbody>';
   DB.depts.concat([null]).forEach(function(d, i){
     h += '<tr><td>'+(d ? '<span class="chip '+CLS[d.ci % CLS.length]+'"></span>' : '')+'</td>'+
       '<td><input data-dk="'+i+':name" value="'+esc(d ? d.name : '')+'"'+(d ? '' : ' placeholder="새 부서 이름"')+' aria-label="부서명"></td>'+
+      '<td><input data-dk="'+i+':mgr" value="'+esc(d ? d.manager || '' : '')+'"'+(d ? ' placeholder="이름"' : ' disabled')+' aria-label="담당자"></td>'+
       '<td><div class="pin"><input data-dk="'+i+':pin" value="" inputmode="numeric"'+(d ? ' placeholder="'+(d.hasPin ? '정해 둠 (바꾸려면 새로 적기)' : '없음 (누구나 들어감)')+'"' : '')+' aria-label="부서 비밀번호">'+
       (d && d.hasPin ? '<button class="link" data-act="clearPin" data-i="'+i+'">없애기</button>' : '')+'</div></td></tr>';
   });
-  h += '</tbody></table><p class="mng-note">부서 비밀번호를 정해서 각 부서에 알려 주세요. 각 부서는 처음 한 번만 입력하면 그 컴퓨터에서는 다시 묻지 않아요.<br>부서 이름을 바꾸면 이미 적은 일정의 부서명도 같이 바뀌어요. 부서를 빼려면 이름을 지우세요.</p>'+
+  h += '</tbody></table><p class="mng-note">부서 비밀번호를 정해서 각 부서에 알려 주세요. 각 부서는 처음 한 번만 입력하면 그 컴퓨터에서는 다시 묻지 않아요.<br>부서 이름을 바꾸면 이미 적은 일정의 부서명도 같이 바뀌어요. 부서를 빼려면 이름을 지우세요.<br>담당자 이름은 일정이 겹칠 때 안내에 같이 나와요 (화면에서만).</p>'+
        '<div class="mng-admin"><span>관리자 비밀번호</span><input id="adminPinInput" data-dk="admin" value="" placeholder="바꾸려면 새로 적기" aria-label="관리자 비밀번호"></div>';
   return h;
 }
@@ -1152,6 +1160,7 @@ function changeDept(el){
     put({action:'add', name:v});
     return commit();
   }
+  if (f === 'mgr') { if (v !== (d.manager || '')) { d.manager = v; put({action:'manager', name:d.name, manager:v}, function(){}); } return commit(); }
   if (f === 'pin') { if (v) { d.hasPin = true; put({action:'pin', name:d.name, pin:v}); } return commit(); }
   if (!v) { DB.depts.splice(i,1); if (DB.me === d.name) DB.me = null; put({action:'remove', name:d.name}); }
   else if (v !== d.name && !deptOf(v)) { if (DB.me === d.name) DB.me = v; put({action:'rename', name:d.name, to:v}); d.name = v; }
@@ -1195,7 +1204,7 @@ document.addEventListener('click', function(e){
       if (b.dataset.row.indexOf('b:') === 0) { dr2.dept = b.dataset.v; remap = {from:b.dataset.row+':', to:'r:'+dr2.id+':'}; }
       else updateRow(dr2, function(x){ x.dept = b.dataset.v; });
       save(); render();
-      var nx2 = document.querySelector('[data-key="r:'+dr2.id+':person"]'); if (nx2) nx2.focus();
+      var nx2 = document.querySelector('[data-key="r:'+dr2.id+':prog"]'); if (nx2) nx2.focus();
       return;
     case 'delRow':
       var dr = rowFor(b.dataset.row); if (!dr) return;

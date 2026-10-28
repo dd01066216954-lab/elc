@@ -63,6 +63,7 @@ const SAMPLE = [
 const COLUMNS = [
   'ALTER TABLE months ADD COLUMN open_from TEXT', // 신청 기간 시작일 '2026-10-20'
   'ALTER TABLE months ADD COLUMN open_to TEXT',   // 신청 기간 마감일
+  'ALTER TABLE depts ADD COLUMN manager TEXT',    // 부서 담당자 이름 (겹침 안내에 나옴)
 ];
 
 let ready = null; // 같은 서버 인스턴스에서는 한 번만
