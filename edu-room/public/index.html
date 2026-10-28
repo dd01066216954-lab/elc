@@ -570,7 +570,7 @@ function itemsFor(d, mode){
       if (mode === 'screen') { pend = 'remove'; src = 'op'; id = rem.id; }
     }
     var t = parseTime(f.time);
-    res.push({src:src, id:id, rowId:row.id, dept:f.dept, prog:f.prog, time:t ? t.label : (f.time||''),
+    res.push({src:src, id:id, rowId:row.id, dept:f.dept, prog:f.prog, note:f.note||'', time:t ? t.label : (f.time||''),
               s:t ? t.s : null, e:t ? t.e : null, pend:pend, half:null, yieldOk:!!f.yieldOk});
   });
   mo.ops.forEach(function(o){
@@ -578,7 +578,7 @@ function itemsFor(d, mode){
     var b = o.blk, pk = o.pend ? o.pend.kind : null;
     if (mode === 'print') { if (pk === 'new') return; if (pk) b = o.pend.prev; }
     var t = parseTime(b.time);
-    res.push({src:'op', id:o.id, dept:b.dept, prog:b.prog, time:t ? t.label : (b.time||''),
+    res.push({src:'op', id:o.id, dept:b.dept, prog:b.prog, note:b.note||'', time:t ? t.label : (b.time||''),
               s:t ? t.s : null, e:t ? t.e : null, pend: mode === 'screen' ? pk : null, half:b.half||'am'});
   });
   /* 겹치면 양보: 다른 일정 시간만큼 잘라 내고, 30분보다 짧게 남은 조각은 버림 */
@@ -620,7 +620,7 @@ function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(
 function uniq(a){ return a.filter(function(v,i){ return a.indexOf(v) === i; }); }
 var ORIG = {};
 var PTAG = {'new':'승인 대기','edit':'변경 승인 대기','del':'삭제 승인 대기','remove':'이날 빼기 승인 대기'};
-function blockText(x){ return [x.dept||'', x.prog ? '<'+x.prog+'>' : '', x.time||''].filter(Boolean).join('\n'); }
+function blockText(x){ return [x.dept||'', x.prog ? '<'+x.prog+'>' : '', x.time||'', x.note ? '*'+x.note : ''].filter(Boolean).join('\n'); }
 function approveBtns(src, id){
   return admin ? '<div class="acts"><button class="ok" data-act="approve" data-src="'+src+'" data-id="'+id+'">승인</button>'+
                  '<button class="no" data-act="reject" data-src="'+src+'" data-id="'+id+'">반려</button></div>' : '';
@@ -633,7 +633,7 @@ function blockHTML(x, d, mode){
     return '<div class="blk pd'+strike+'" data-key="'+x.src+':'+x.id+':'+d+'">'+
       '<div class="tag">'+PTAG[x.pend]+'</div>'+
       '<div class="t1">'+esc(x.dept)+'</div>'+(x.prog ? '<div class="t2">&lt;'+esc(x.prog)+'&gt;</div>' : '')+
-      '<div class="t2">'+esc(x.time)+'</div>'+approveBtns(x.src, x.id)+'</div>';
+      '<div class="t2">'+esc(x.time)+'</div>'+(x.note ? '<div class="t2">*'+esc(x.note)+'</div>' : '')+approveBtns(x.src, x.id)+'</div>';
   }
   if (x.adj) {
     var h0 = '<div class="blk ed lock '+c+(x.ovWith.length ? ' ov' : '')+'" title="다른 일정 때문에 자동으로 줄어든 시간이에요">'+esc(blockText(x))+'</div>';
@@ -987,11 +987,15 @@ function decide(src, id, ok){
 function parseBlock(text, forced){
   var lines = String(text||'').split(/\n/).map(function(s){ return s.trim(); }).filter(Boolean);
   if (!lines.length) return null;
-  var time = '', other = [];
-  lines.forEach(function(l){ var t = parseTime(l); if (!time && t) time = t.label; else other.push(l); });
+  var time = '', other = [], notes = [];
+  lines.forEach(function(l){
+    if (/^[*＊※]/.test(l)) { notes.push(l.replace(/^[*＊※]\s*/, '')); return; }   // *로 시작하는 줄 = 기타
+    var t = parseTime(l); if (!time && t) time = t.label; else other.push(l);
+  });
   var clean = function(s){ return (s||'').replace(/^[<〈《(]\s*/,'').replace(/\s*[>〉》)]$/,''); };
-  if (forced) { other = other.filter(function(l){ return l !== forced; }); return {dept:forced, prog:clean(other[0]), time:time}; }
-  return {dept: other[0]||'', prog: clean(other[1]), time: time};
+  var note = notes.filter(Boolean).join(' / ');
+  if (forced) { other = other.filter(function(l){ return l !== forced; }); return {dept:forced, prog:clean(other[0]), time:time, note:note}; }
+  return {dept: other[0]||'', prog: clean(other[1]), time: time, note: note};
 }
 function editBlock(el){
   var key = el.dataset.key, text = el.innerText.replace(/ /g,' ').trim();

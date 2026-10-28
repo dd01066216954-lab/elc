@@ -196,7 +196,9 @@ function cleanRowPrev(p) {
 }
 function cleanBlk(b) {
   if (!b || typeof b !== 'object') throw new Bad('보낸 칸이 비어 있어요.');
-  return { dept: str(b.dept), prog: str(b.prog), time: str(b.time), half: b.half === 'pm' ? 'pm' : 'am' };
+  const out = { dept: str(b.dept), prog: str(b.prog), time: str(b.time), half: b.half === 'pm' ? 'pm' : 'am' };
+  if (b.note) out.note = str(b.note); // 기타 (현황표에 *로 나옴)
+  return out;
 }
 function cleanSel(s) {
   const days = (a, max) => (Array.isArray(a) ? a : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= max);
