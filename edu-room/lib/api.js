@@ -237,7 +237,10 @@ async function postRow(db, who, ym, raw) {
   ownDept(who, r.dept);
   await monthMustExist(db, ym);
   const asked = r.pend;
-  if (who.role !== 'admin') r.pend = (await needsApproval(db, ym)) ? { kind: 'new', prev: null } : null;
+  if (who.role !== 'admin') {
+    r.yieldOk = false; // 겹치면 양보는 관리자만 정한다
+    r.pend = (await needsApproval(db, ym)) ? { kind: 'new', prev: null } : null;
+  }
   await rowInsert(db, ym, r, Date.now(), false).run().catch((e) => { throw dup(e); });
   return { ok: true, fixed: !samePend(asked, r.pend) };
 }
@@ -251,6 +254,7 @@ async function putRow(db, who, raw) {
   ownDept(who, r.dept);
   const asked = r.pend;
   if (who.role !== 'admin') {
+    r.yieldOk = old.pend && old.pend.prev ? old.pend.prev.yieldOk : old.yieldOk; // 겹치면 양보는 관리자만
     if (await needsApproval(db, cur.ym)) {
       const base = old.pend && old.pend.prev ? old.pend.prev : fieldsOf(old);
       if (old.pend && old.pend.kind === 'new') r.pend = { kind: 'new', prev: null };

@@ -117,6 +117,16 @@ test('부서는 자기 부서 것만 (API 로 직접 보내도 403)', async () =
   await call('/rows/a1', { method: 'DELETE', as: 'admin' });
 });
 
+test('겹치면 양보는 관리자만 정할 수 있다', async () => {
+  await call('/rows', { method: 'POST', body: { ym: '2026-10', row: row('y1', '주간활동', { yieldOk: true }) }, as: 'ju' });
+  assert.equal((await month()).rows.find((r) => r.id === 'y1').yieldOk, false);
+  await call('/rows/y1', { method: 'PUT', body: { row: row('y1', '주간활동', { yieldOk: true }) }, as: 'admin' });
+  await call('/rows/y1', { method: 'PUT', body: { row: row('y1', '주간활동', { yieldOk: false, prog: '부서가 고침' }) }, as: 'ju' });
+  const y1 = (await month()).rows.find((r) => r.id === 'y1');
+  assert.equal(y1.yieldOk, true); assert.equal(y1.prog, '부서가 고침');
+  await call('/rows/y1', { method: 'DELETE', as: 'admin' });
+});
+
 test('확정된 달: 부서 변경은 서버가 승인 대기로, 관리자는 바로', async () => {
   await call('/month/confirm', { method: 'POST', body: { ym: '2026-10', confirmed: true }, as: 'admin' });
   // 새 줄 → new (화면이 pend 없이 보내도)

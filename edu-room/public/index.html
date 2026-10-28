@@ -833,7 +833,7 @@ function formHTML(mode){
       if (f === 'note') {
         var yk = rid+':yieldOk';
         h += '<td class="etc"><input data-key="'+rid+':note" data-f="note" value="'+esc(v)+'" aria-label="기타"'+(!r ? ' placeholder="메모"' : '')+'>'+
-          '<label class="yield"><input type="checkbox" data-key="'+yk+'" data-f="yieldOk"'+(r && r.yieldOk ? ' checked' : '')+'> 겹치면 양보</label>'+
+          (admin ? '<label class="yield"><input type="checkbox" data-key="'+yk+'" data-f="yieldOk"'+(r && r.yieldOk ? ' checked' : '')+'> 겹치면 양보</label>' : '')+  // 겹치면 양보는 관리자만
           (pk ? '<div class="tag">'+PTAG[pk]+'</div>'+approveBtns('row', r.id) : '')+'</td>';
         return;
       }
