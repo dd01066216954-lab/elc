@@ -102,6 +102,10 @@ async function route(request, env, url) {
 async function monthPayload(env, ym) {
   const db = env.DB;
   await ensureMonth(db, ym);
+  // 지워진 신청서 줄에 딸려 남은 칸 정리 (예전에는 줄을 지워도 그날만 옮긴 칸이 남았음)
+  await db.prepare(`DELETE FROM ops WHERE room = ?1 AND ym = ?2 AND (
+      (type = 'remove' AND row_id NOT IN (SELECT id FROM rows WHERE room = ?1)) OR
+      (json_extract(blk, '$.rowId') IS NOT NULL AND json_extract(blk, '$.rowId') NOT IN (SELECT id FROM rows WHERE room = ?1)))`).bind(ROOM, ym).run();
   const [mo, rows, ops, depts, settings, times, holidays] = await Promise.all([
     db.prepare('SELECT confirmed, imported_from, imported_n, open_from, open_to FROM months WHERE room = ? AND ym = ?').bind(ROOM, ym).first(),
     db.prepare('SELECT * FROM rows WHERE room = ? AND ym = ? ORDER BY rowid').bind(ROOM, ym).all(),
@@ -281,7 +285,7 @@ async function deleteRow(db, who, id) {
   }
   await db.batch([
     db.prepare('DELETE FROM rows WHERE room = ? AND id = ?').bind(ROOM, id),
-    db.prepare('DELETE FROM ops WHERE room = ? AND row_id = ?').bind(ROOM, id),
+    db.prepare("DELETE FROM ops WHERE room = ? AND (row_id = ?2 OR json_extract(blk, '$.rowId') = ?2)").bind(ROOM, id), // 이날 빼기 + 그날만 옮긴 칸
   ]);
   return { ok: true };
 }
@@ -369,7 +373,7 @@ async function approve(env, { kind, id, ok }) {
     const r = rowOut(raw), k = r.pend && r.pend.kind;
     const del = () => db.batch([
       db.prepare('DELETE FROM rows WHERE room = ? AND id = ?').bind(ROOM, id),
-      db.prepare('DELETE FROM ops WHERE room = ? AND row_id = ?').bind(ROOM, id),
+      db.prepare("DELETE FROM ops WHERE room = ? AND (row_id = ?2 OR json_extract(blk, '$.rowId') = ?2)").bind(ROOM, id), // 이날 빼기 + 그날만 옮긴 칸
     ]);
     const clear = () => db.prepare('UPDATE rows SET pend_kind = NULL, pend_prev = NULL, updated_at = ? WHERE room = ? AND id = ?').bind(now, ROOM, id).run();
     if (ok) { if (k === 'del') await del(); else await clear(); }

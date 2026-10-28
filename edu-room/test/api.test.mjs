@@ -241,6 +241,22 @@ test('처음 여는 다음 달은 매주 반복 줄만 가져오고, 두 번 가
   assert.ok((await month()).rows.length >= 14);
 });
 
+test('신청서 줄을 지우면 그날만 옮긴 칸·이날 빼기도 같이 지워지고, 예전에 남은 것도 정리', async () => {
+  await call('/rows', { method: 'POST', body: { ym: '2026-10', row: row('z1', '자립지원') }, as: 'admin' });
+  await call('/ops', { method: 'POST', body: { ym: '2026-10', op: { id: 'zr', type: 'remove', d: 14, rowId: 'z1' } }, as: 'admin' });
+  await call('/ops', { method: 'POST', body: { ym: '2026-10', op: { id: 'za', type: 'add', d: 15, blk: { dept: '자립지원', prog: '테스트', time: '15:00~16:00', half: 'pm', rowId: 'z1', from: 14 } } }, as: 'admin' });
+  await call('/ops', { method: 'POST', body: { ym: '2026-10', op: { id: 'zb', type: 'add', d: 16, blk: { dept: '자립지원', prog: '하루', time: '15:00~16:00', half: 'pm' } } }, as: 'admin' });
+  assert.deepEqual((await month()).ops.filter((o) => o.id.startsWith('z')).map((o) => o.id), ['zr', 'za', 'zb']);
+  await call('/rows/z1', { method: 'DELETE', as: 'admin' });
+  assert.deepEqual((await month()).ops.filter((o) => o.id.startsWith('z')).map((o) => o.id), ['zb']); // 줄과 상관없는 하루 칸은 남음
+  // 예전 방식으로 남아 버린 칸 (줄은 없는데 칸만 있음) → 불러올 때 정리
+  env.DB.raw.exec(`INSERT INTO ops (id, room, ym, d, type, row_id, blk, updated_at) VALUES
+    ('zo', '4f-edu', '2026-10', 20, 'add', NULL, '{"dept":"자립지원","prog":"남은칸","time":"9:00~10:00","half":"am","rowId":"gone1"}', 0),
+    ('zq', '4f-edu', '2026-10', 21, 'remove', 'gone1', NULL, 0)`);
+  assert.deepEqual((await month()).ops.filter((o) => o.id.startsWith('z')).map((o) => o.id), ['zb']);
+  await call('/ops/zb', { method: 'DELETE', as: 'admin' });
+});
+
 test('부서 더하기·빼기, 이상한 값은 막는다', async () => {
   await call('/depts', { method: 'PUT', body: { action: 'add', name: '새부서' }, as: 'admin' });
   assert.deepEqual((await month()).depts.at(-1), { name: '새부서', ci: 0, hasPin: false, manager: '' });

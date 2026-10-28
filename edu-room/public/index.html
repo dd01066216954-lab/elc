@@ -1211,7 +1211,7 @@ function decide(src, id, ok){
   if (src === 'row') {
     var i = mo.rows.findIndex(function(r){ return r.id === id; }); if (i < 0) return;
     var r = mo.rows[i], k = r.pend && r.pend.kind;
-    if (ok) { if (k === 'del') { mo.rows.splice(i,1); mo.ops = mo.ops.filter(function(o){ return o.rowId !== id; }); } else r.pend = null; }
+    if (ok) { if (k === 'del') { mo.rows.splice(i,1); mo.ops = mo.ops.filter(function(o){ return !opOfRow(o, id); }); } else r.pend = null; }
     else { if (k === 'new') mo.rows.splice(i,1); else if (k === 'edit') { Object.assign(r, clone(r.pend.prev)); r.pend = null; } else r.pend = null; }
   } else {
     var j = mo.ops.findIndex(function(o){ return o.id === id; }); if (j < 0) return;
@@ -1331,6 +1331,8 @@ mainEl.addEventListener('click', function(e){
 function newRow(){
   return {id:uid(), dept: admin ? '' : DB.me, person:'', prog:'', sel:emptySel(), time:'', note:'', pend: needsApproval() ? {kind:'new'} : null};
 }
+/* 이 신청서 줄에 딸린 칸: 이날 빼기, 그날만 옮기거나 고친 칸 → 줄을 지우면 같이 지움 */
+function opOfRow(o, id){ return o.rowId === id || !!(o.blk && o.blk.rowId === id); }
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function updateRow(row, fn){
   var mo = M(), conf = needsApproval();
@@ -1338,7 +1340,7 @@ function updateRow(row, fn){
   fn(row);
   var empty = selEmpty(row.sel) && ['person','prog','time','note'].every(function(k){ return !String(row[k]||'').trim(); });
   if (empty) {
-    if (!conf || (row.pend && row.pend.kind === 'new')) { mo.rows.splice(mo.rows.indexOf(row),1); mo.ops = mo.ops.filter(function(o){ return o.rowId !== row.id; }); if (openPick === 'r:'+row.id) openPick = null; }
+    if (!conf || (row.pend && row.pend.kind === 'new')) { mo.rows.splice(mo.rows.indexOf(row),1); mo.ops = mo.ops.filter(function(o){ return !opOfRow(o, row.id); }); if (openPick === 'r:'+row.id) openPick = null; }
     else { var prev = row.pend ? row.pend.prev : before; Object.assign(row, clone(prev)); row.pend = {kind:'del', prev:prev}; }
   } else if (conf && !row.pend) row.pend = {kind:'edit', prev:before};
 }
