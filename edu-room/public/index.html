@@ -152,6 +152,11 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 .tchips button{height:26px;padding:0 8px;border-radius:13px;border:1px solid #C5CAD2;background:#F4F6F9;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
 .tchips button:hover{background:#E3E8EF}
 
+/* 부서 버튼 */
+.dchips button{border-width:1px;font-weight:700;color:var(--ink)}
+.nbchips{display:flex;flex-wrap:wrap;gap:3px;justify-content:center}
+.nbchips button{height:24px;padding:0 6px;border-radius:12px;font-size:11px;font-weight:700;color:var(--ink);cursor:pointer}
+
 /* 겹치면 양보 */
 .yield{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);padding:0 2px 6px;cursor:pointer}
 .form .etc .yield input{width:16px;height:16px;margin:0;padding:0}
@@ -650,6 +655,7 @@ function formHTML(mode){
       h += '<td><input data-key="'+rid+':'+f+'" data-f="'+f+'" value="'+esc(v)+'"'+(ph ? ' placeholder="'+ph+'"' : '')+' aria-label="'+NAMES[f]+'">';
       if (r && f === 'time' && v && !parseTime(v)) h += '<div class="hint bad">시간을 알아볼 수 없어요 (예: 13:00~14:30)</div>';
       if (f === 'time') h += '<div class="tchips">'+timeChips().map(function(c){ return '<button type="button" data-act="tchip" data-row="'+rid+'" data-v="'+c+'">'+c+'</button>'; }).join('')+'</div>';
+      if (f === 'dept') h += '<div class="tchips dchips">'+DB.depts.map(function(d){ return '<button type="button" class="'+CLS[d.ci % CLS.length]+'" data-act="dchip" data-row="'+rid+'" data-v="'+esc(d.name)+'">'+esc(d.name)+'</button>'; }).join('')+'</div>';
       if (r && f === 'dept' && v && !deptOf(v)) h += '<div class="hint bad">부서 목록에 없는 이름이에요</div>';
       h += '</td>';
     });
@@ -847,7 +853,30 @@ mainEl.addEventListener('click', function(e){
   nb.dataset.key = 'new:' + cell.dataset.d + ':' + cell.dataset.half; nb.dataset.d = cell.dataset.d; nb.dataset.half = cell.dataset.half;
   nb.dataset.ph = admin ? '부서\n<프로그램>\n시간 (예: 13:00~14:30)' : DB.me + '\n<프로그램>\n시간 (예: 13:00~14:30)';
   ORIG[nb.dataset.key] = '';
-  cell.appendChild(nb); nb.focus();
+  cell.appendChild(nb);
+  if (admin) {
+    var bar = document.createElement('div'); bar.className = 'nbchips';
+    DB.depts.forEach(function(d){
+      var bt = document.createElement('button'); bt.type = 'button'; bt.textContent = d.name; bt.className = CLS[d.ci % CLS.length];
+      bt.addEventListener('mousedown', function(ev){
+        ev.preventDefault();
+        var lines = (nb.innerText || nb.textContent || '').replace(/\u00a0/g,' ').split('\n');
+        var first = (lines[0]||'').trim();
+        if (first && !deptOf(first) && !parseTime(first)) lines.unshift(d.name); else lines[0] = d.name;
+        nb.className = 'blk ed newblk ' + CLS[d.ci % CLS.length];
+        var rg = document.createRange();
+        if (lines.length < 2 || lines.slice(1).join('').trim() === '') {
+          /* 부서만 있으면 커서를 둘째 줄(프로그램 자리)에 둔다 */
+          nb.innerHTML = esc(d.name) + '<br><br>'; rg.setStart(nb, 2); rg.collapse(true);
+        } else { nb.innerText = lines.join('\n'); rg.selectNodeContents(nb); rg.collapse(false); }
+        var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+      });
+      bar.appendChild(bt);
+    });
+    cell.insertBefore(bar, nb);
+    nb.addEventListener('blur', function(){ if (bar.parentNode) bar.remove(); });
+  }
+  nb.focus();
 });
 
 /* ---------------- 신청서 칸 / 부서 관리 칸 ---------------- */
@@ -942,6 +971,13 @@ document.addEventListener('click', function(e){
       else updateRow(tr, function(x){ x.time = b.dataset.v; });
       save(); render();
       var nx = document.querySelector('[data-key="r:'+tr.id+':note"]'); if (nx) nx.focus();
+      return;
+    case 'dchip':
+      var dr2 = rowFor(b.dataset.row, true); if (!dr2) return;
+      if (b.dataset.row.indexOf('b:') === 0) { dr2.dept = b.dataset.v; remap = {from:b.dataset.row+':', to:'r:'+dr2.id+':'}; }
+      else updateRow(dr2, function(x){ x.dept = b.dataset.v; });
+      save(); render();
+      var nx2 = document.querySelector('[data-key="r:'+dr2.id+':person"]'); if (nx2) nx2.focus();
       return;
     case 'delRow':
       var dr = rowFor(b.dataset.row); if (!dr) return;
