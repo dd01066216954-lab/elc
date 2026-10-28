@@ -165,6 +165,7 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 .hint{font-size:11.5px;color:var(--muted);padding:0 8px 6px;line-height:1.4}
 .hint.info{display:none}
 .form td:focus-within .hint.info{display:block}
+.hint.daynote{color:#3F444B;margin-top:-2px}
 .hint.bad{color:#B71C1C;font-weight:700}
 .form tr.pdrow td{background:#FAFAFA}
 .form tr.pdrow td:first-child{border-left:3px dashed #767676}
@@ -944,13 +945,15 @@ function moveDay(rid, kind, id, d0, d, s, e){
   var row = rowFor(rid); if (!row) return;
   var mo = M(), conf = needsApproval();
   if (kind === 'row') mo.ops.push({id:uid(), type:'remove', rowId:row.id, d:d0, pend: conf ? {kind:'new'} : null});
+  var from = kind === 'row' ? d0 : null;
   if (kind === 'op') {
     var o = mo.ops.find(function(x){ return x.id === id; }); if (!o) return;
+    from = o.blk && o.blk.from || null;
     if (!conf || (o.pend && o.pend.kind === 'new')) mo.ops.splice(mo.ops.indexOf(o), 1);
     else o.pend = {kind:'del', prev: o.pend ? o.pend.prev : o.blk};
   }
   mo.ops.push({id:uid(), type:'add', d:d, pend: conf ? {kind:'new'} : null,
-    blk:{dept:row.dept, prog:row.prog, time:hm(s)+'~'+hm(e), note:row.note||'', half: s >= 720 ? 'pm' : 'am', rowId:row.id}});
+    blk:{dept:row.dept, prog:row.prog, time:hm(s)+'~'+hm(e), note:row.note||'', half: s >= 720 ? 'pm' : 'am', rowId:row.id, from:from}});
   save(); render();
 }
 function timePick(b){
@@ -964,6 +967,24 @@ function timePick(b){
   if (st.eh*60 + st.em <= a) { st.sh = st.eh - 1; st.sm = st.em; }
   setTime(rid, pad(st.sh)+':'+pad(st.sm)+'~'+pad(st.eh)+':'+pad(st.em));
   var f = document.querySelector('[data-act="tp"][data-row="'+openTime+'"][data-k="'+k+'"][data-v="'+v+'"]'); if (f) f.focus();
+}
+
+/* 이 줄에서 그날만 바꾼 것 (현황표에서 고친 칸, 시간 막대에서 옮긴 칸) → 신청서 이용날짜 아래에 */
+function rowDayNotes(r, mode){
+  var scr = mode === 'screen', out = [], moved = {}, wd = function(d){ return d+'일('+'일월화수목금토'[dow(d)]+')'; };
+  var tag = function(o){ return scr && o.pend ? ' (승인 대기)' : ''; };
+  var live = function(o){ return scr ? !(o.pend && o.pend.kind === 'del') : !o.pend; };   // 인쇄는 승인된 것만
+  M().ops.forEach(function(o){
+    if (o.type !== 'add' || !o.blk || o.blk.rowId !== r.id || !live(o)) return;
+    var t = parseTime(o.blk.time), tm = t ? t.label : o.blk.time, f = o.blk.from;
+    if (f) moved[f] = true;
+    out.push({d:o.d, text: !f ? '+ '+wd(o.d)+' '+tm : f === o.d ? f+'일만 '+tm : f+'일 → '+wd(o.d)+' '+tm, tag:tag(o)});
+  });
+  M().ops.forEach(function(o){
+    if (o.type !== 'remove' || o.rowId !== r.id || !live(o) || moved[o.d]) return;
+    out.push({d:o.d, text:o.d+'일 빠짐', tag:tag(o)});
+  });
+  return out.sort(function(a,b){ return a.d - b.d; }).map(function(x){ return x.text + x.tag; });
 }
 
 function rowOverlaps(){
@@ -1004,7 +1025,7 @@ function formHTML(mode){
     var rid = r ? 'r:'+r.id : 'b:'+i;
     h += '<tr'+(pk ? ' class="pdrow'+(pk === 'del' ? ' delrow' : '')+'"' : '')+'><td class="no">'+(i+1)+'</td>';
     cols.forEach(function(f){
-      var v = r ? (f === 'dates' ? selText(r.sel) : f === 'person' ? (mgrOf(r.dept) || r.person || '') : (r[f]||'')) : '';
+      var v = r ? (f === 'dates' ? [selText(r.sel)].concat(rowDayNotes(r, 'print')).filter(Boolean).join(', ') : f === 'person' ? (mgrOf(r.dept) || r.person || '') : (r[f]||'')) : '';
       if (!scr) { h += '<td>'+esc(v)+'</td>'; return; }
       if (f === 'note') {
         var yk = rid+':yieldOk';
@@ -1017,6 +1038,8 @@ function formHTML(mode){
         var st = r ? selText(r.sel) : '';
         h += '<td><button class="datecell'+(st ? '' : ' empty')+(openPick === rid ? ' open' : '')+'" data-act="pick" data-row="'+rid+'" data-key="'+rid+':dates" aria-expanded="'+(openPick === rid)+'">'+
              (st ? esc(st) : '눌러서 날짜 고르기')+'</button>';
+        var dn = r ? rowDayNotes(r, 'screen') : [];
+        if (dn.length) h += '<div class="hint daynote">'+dn.map(esc).join('<br>')+'</div>';
         if (r && ov[r.id]) h += '<div class="hint bad">겹침: '+ov[r.id].map(function(o){ return o.d+'일('+uniq(o.w).map(ovName).join('·')+')'; }).join(', ')+'</div>'+
                                '<div class="hint">담당자끼리 시간을 맞춰 주세요</div>';
         h += '</td>';
@@ -1228,10 +1251,10 @@ function applyBlock(el, text){
     var r = mo.rows.find(function(x){ return x.id === el.dataset.id; }), t = r && parseTime(r.time);
     var half = t && t.s >= 720 ? 'pm' : 'am';
     mo.ops.push({id:uid(), type:'remove', rowId:el.dataset.id, d:d, pend: conf ? {kind:'new'} : null});
-    if (p) { p.half = half; mo.ops.push({id:uid(), type:'add', d:d, blk:p, pend: conf ? {kind:'new'} : null}); }
+    if (p) { p.half = half; p.rowId = el.dataset.id; p.from = d; mo.ops.push({id:uid(), type:'add', d:d, blk:p, pend: conf ? {kind:'new'} : null}); }
   } else {
     var o = mo.ops.find(function(x){ return x.id === el.dataset.id; }); if (!o) return;
-    if (p) { p.half = o.blk.half; if (o.blk.rowId) p.rowId = o.blk.rowId; }
+    if (p) { p.half = o.blk.half; if (o.blk.rowId) { p.rowId = o.blk.rowId; if (o.blk.from) p.from = o.blk.from; } }
     if (!p) { if (!conf || (o.pend && o.pend.kind === 'new')) mo.ops.splice(mo.ops.indexOf(o),1); else o.pend = {kind:'del', prev: o.pend ? o.pend.prev : o.blk}; }
     else if (o.pend) o.blk = p;
     else if (conf) { o.pend = {kind:'edit', prev:o.blk}; o.blk = p; }

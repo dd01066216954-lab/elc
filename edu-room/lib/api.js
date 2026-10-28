@@ -199,6 +199,7 @@ function cleanBlk(b) {
   const out = { dept: str(b.dept), prog: str(b.prog), time: str(b.time), half: b.half === 'pm' ? 'pm' : 'am' };
   if (b.note) out.note = str(b.note); // 기타 (현황표에 *로 나옴)
   if (b.rowId && ID.test(String(b.rowId))) out.rowId = String(b.rowId); // 신청서 줄에서 그날만 옮긴 칸
+  const from = Number(b.from); if (out.rowId && Number.isInteger(from) && from >= 1 && from <= 31) out.from = from; // 원래 며칠이었는지
   return out;
 }
 function cleanSel(s) {
