@@ -41,7 +41,8 @@ button:focus-visible,input:focus-visible,[contenteditable]:focus{outline:2px sol
 .mpick .mp-g button{width:auto;height:40px;border:1px solid #D4D7DC;border-radius:8px;background:#fff;font-size:15px}
 .mpick .mp-g button.now{border-color:#2F6FD0;color:#2F6FD0;font-weight:700}
 .mpick .mp-g button.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
-.mp-today{display:block;margin:8px auto 0}
+.mpick .mp-today{display:block;width:100%;height:38px;margin-top:10px;padding:0;border:1px solid #C5CAD2;border-radius:8px;background:#F4F6F9;color:var(--navy);font-size:14.5px;font-weight:700;text-decoration:none;white-space:nowrap}
+.mpick .mp-today:hover{background:var(--navy-soft)}
 .seg{display:flex;border:1px solid #B9BEC6;border-radius:8px;overflow:hidden}
 .seg button{height:42px;padding:0 20px;border:0;background:var(--paper);color:#444;font-size:15px}
 .seg button+button{border-left:1px solid #D4D7DC}
@@ -1125,7 +1126,7 @@ function mpHTML(){
     var k = mp.y + '-' + pad(m);
     h += '<button data-act="mpGo" data-v="'+k+'" class="'+(k === cur ? 'on' : '')+(k === now ? ' now' : '')+'">'+m+'월</button>';
   }
-  return h + '</div><button class="link mp-today" data-act="mpGo" data-v="'+now+'">이번 달로</button></div>';
+  return h + '</div><button class="mp-today" data-act="mpGo" data-v="'+now+'">이번 달로</button></div>';
 }
 function goMonth(k){
   openPick = null; openTime = null; mp = null; cur = k; savePrefs();
