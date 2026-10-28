@@ -55,11 +55,18 @@ const SAMPLE = [
   ['활동지원', '보수교육', [], '14:00~16:00', [14]],
 ];
 
+// 나중에 더한 칸 (이미 있으면 오류가 나므로 하나씩 실행하고 오류는 무시)
+const COLUMNS = [
+  'ALTER TABLE months ADD COLUMN open_from TEXT', // 신청 기간 시작일 '2026-10-20'
+  'ALTER TABLE months ADD COLUMN open_to TEXT',   // 신청 기간 마감일
+];
+
 let ready = null; // 같은 서버 인스턴스에서는 한 번만
 
 export function ensureSchema(db) {
   if (!ready) {
     ready = db.batch(TABLES.map((s) => db.prepare(s)))
+      .then(() => Promise.all(COLUMNS.map((sql) => db.prepare(sql).run().catch(() => {}))))
       .then(() => seed(db))
       .catch((e) => { ready = null; throw e; });
   }

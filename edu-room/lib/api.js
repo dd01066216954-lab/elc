@@ -70,6 +70,14 @@ async function route(request, env, url) {
     ]);
     return json(await monthPayload(db, ym));
   }
+  if (path === '/month/period' && method === 'POST') {
+    // 신청 기간 (모든 부서 같은 기간). 둘 다 비우면 기간 없음
+    const ym = ymOf(body.ym), from = dayOf(body.from), to = dayOf(body.to);
+    if (from && to && from > to) throw new Bad('시작일이 마감일보다 늦어요.');
+    await monthMustExist(db, ym);
+    await db.prepare('UPDATE months SET open_from = ?, open_to = ? WHERE room = ? AND ym = ?').bind(from, to, ROOM, ym).run();
+    return json({ ok: true });
+  }
   if (path === '/month/notice' && method === 'POST') {
     await db.prepare('UPDATE months SET imported_from = NULL, imported_n = NULL WHERE room = ? AND ym = ?').bind(ROOM, ymOf(body.ym)).run();
     return json({ ok: true });
@@ -84,7 +92,7 @@ async function route(request, env, url) {
 async function monthPayload(db, ym) {
   await ensureMonth(db, ym);
   const [mo, rows, ops, depts, settings, times] = await Promise.all([
-    db.prepare('SELECT confirmed, imported_from, imported_n FROM months WHERE room = ? AND ym = ?').bind(ROOM, ym).first(),
+    db.prepare('SELECT confirmed, imported_from, imported_n, open_from, open_to FROM months WHERE room = ? AND ym = ?').bind(ROOM, ym).first(),
     db.prepare('SELECT * FROM rows WHERE room = ? AND ym = ? ORDER BY rowid').bind(ROOM, ym).all(),
     db.prepare('SELECT * FROM ops WHERE room = ? AND ym = ? ORDER BY rowid').bind(ROOM, ym).all(),
     db.prepare('SELECT name, color_idx, pin_hash FROM depts WHERE room = ? ORDER BY sort, id').bind(ROOM).all(),
@@ -97,6 +105,7 @@ async function monthPayload(db, ym) {
     ym,
     confirmed: !!mo.confirmed,
     imported: mo.imported_from ? { from: mo.imported_from, n: mo.imported_n } : null,
+    period: mo.open_from || mo.open_to ? { from: mo.open_from || '', to: mo.open_to || '' } : null,
     rows: rows.results.map(rowOut),
     ops: ops.results.map(opOut),
     depts: depts.results.map((d) => ({ name: d.name, ci: d.color_idx, hasPin: !!d.pin_hash })),
@@ -351,6 +360,11 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
 function ymOf(v) { if (!YM.test(String(v || ''))) throw new Bad('달이 이상해요.'); return v; }
+function dayOf(v) {
+  if (v == null || v === '') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v)) || isNaN(Date.parse(v))) throw new Bad('날짜가 이상해요.');
+  return String(v);
+}
 function idOf(v) { if (!ID.test(String(v || ''))) throw new Bad('번호가 이상해요.'); return String(v); }
 function str(v) { return v == null ? '' : String(v).slice(0, 500); }
 function parse(s) { try { return s ? JSON.parse(s) : null; } catch { return null; } }

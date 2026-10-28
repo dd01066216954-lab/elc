@@ -125,6 +125,13 @@ main{padding:24px 16px 48px}
 .rules{display:grid;grid-template-columns:150px 1fr;border:1.5px solid var(--line-strong);margin-bottom:14px}
 .rules .rh{background:#D9DCE1;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;letter-spacing:2px}
 .rules .rb{padding:10px 14px;line-height:1.7;white-space:pre-line;font-size:14px}
+/* 신청 기간 */
+.period{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:-4px 0 14px;font-size:14px}
+.period b{font-weight:700}
+.period input{height:34px;border:1px solid #B9BEC6;border-radius:6px;padding:0 8px;font-size:14px;font-family:inherit}
+.period .pstate{font-size:13px;color:var(--muted)}
+.period .pstate.open{color:#1E6B3A;font-weight:700}
+.period .pstate.shut{color:#A11F1F;font-weight:700}
 table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixed;border:1.5px solid var(--line-strong)}
 .form th{background:var(--head);font-size:14.5px;font-weight:700;height:38px;border:1px solid var(--line);letter-spacing:1px}
 .form td{border:1px solid var(--line);padding:0;vertical-align:top}
@@ -296,7 +303,7 @@ function api(method, path, body){
 }
 function setMonth(data){
   DB.depts = data.depts; DB.rules = data.rules; DB.adminSet = data.adminSet; DB.times = data.times;
-  DB.months[data.ym] = {confirmed:data.confirmed, imported:data.imported, rows:data.rows, ops:data.ops};
+  DB.months[data.ym] = {confirmed:data.confirmed, imported:data.imported, rows:data.rows, ops:data.ops, period:data.period};
   if (DB.me && !deptOf(DB.me)) { DB.me = null; savePrefs(); }
   if (data.ym === cur) markSynced();
 }
@@ -429,7 +436,46 @@ function colorOf(name){
 }
 function deptRank(name){ var i = DB.depts.findIndex(function(x){ return x.name === name; }); return i < 0 ? 99 : i; }
 function canEdit(dept){ return admin || (DB.me && dept === DB.me); }
-function needsApproval(){ return M().confirmed && !admin; }
+function needsApproval(){ return !admin && (M().confirmed || !periodOpen()); }
+/* 신청 기간: 정하지 않으면 늘 열려 있음. 기간 밖에서 부서가 고치면 승인 대기 */
+function todayStr(){ var n = new Date(); return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate()); }
+function periodOpen(){
+  var p = M().period, t = todayStr();
+  return !p || ((!p.from || t >= p.from) && (!p.to || t <= p.to));
+}
+function dayText(s){
+  if (!s) return '';
+  var a = s.split('-'), dt = new Date(+a[0], +a[1]-1, +a[2]);
+  return (+a[1])+'월 '+(+a[2])+'일('+'일월화수목금토'[dt.getDay()]+')';
+}
+function periodHTML(scr){
+  var p = M().period, t = ym();
+  if (scr && admin) {
+    var st = !p ? '<span class="pstate">정하지 않으면 확정 전까지 언제든 적을 수 있어요</span>'
+           : periodOpen() ? '<span class="pstate open">지금 신청 받는 중</span>'
+           : '<span class="pstate shut">'+(p.from && todayStr() < p.from ? '아직 신청 기간 전' : '신청 기간 끝남')+' · 부서가 적으면 승인 대기</span>';
+    return '<div class="period"><b>'+t.m+'월 신청 기간</b>'+
+      '<input type="date" data-pk="from" value="'+esc(p && p.from || '')+'" aria-label="신청 시작일"> ~ '+
+      '<input type="date" data-pk="to" value="'+esc(p && p.to || '')+'" aria-label="신청 마감일">'+st+'</div>';
+  }
+  if (!p) return '';
+  var when = (p.from ? dayText(p.from) : '') + ' ~ ' + (p.to ? dayText(p.to) : '');
+  if (!scr) return '<div class="period"><b>'+t.m+'월 신청 기간</b> '+esc(when)+'</div>';
+  return '<div class="period"><b>'+t.m+'월 신청 기간</b> '+esc(when)+
+    (periodOpen() ? '<span class="pstate open">지금 적으면 바로 반영돼요</span>'
+                  : '<span class="pstate shut">신청 기간이 아니라 관리자 승인 후 반영돼요</span>')+'</div>';
+}
+function changePeriod(el){
+  var mo = M(), p = {from: mo.period && mo.period.from || '', to: mo.period && mo.period.to || ''};
+  p[el.dataset.pk] = el.value || '';
+  if (p.from && p.to && p.from > p.to) {
+    if (el.dataset.pk === 'from') p.to = p.from; else p.from = p.to;
+  }
+  mo.period = p.from || p.to ? p : null;
+  var k = cur;
+  send(function(){ return api('POST', '/month/period', {ym:k, from:p.from, to:p.to}); });
+  commit();
+}
 
 /* ---------------- 하루치 일정 모으기 ---------------- */
 function itemsFor(d, mode){
@@ -624,6 +670,7 @@ function formHTML(mode){
   var WID = admin ? ['52px','15%','10%','17%','21%','15%',''] : ['52px','12%','20%','24%','17%',''];
   var h = '<h1 class="title">4층 교육장 이용 신청서 (<em>'+t.m+'월</em>)'+(!admin ? ' · '+esc(DB.me) : '')+'</h1>';
   h += '<div class="rules"><div class="rh">교육장 이용 규칙</div><div class="rb"'+(scr && admin ? ' contenteditable="true" spellcheck="false" data-key="rules" id="rulesBox"' : '')+'>'+esc(DB.rules)+'</div></div>';
+  h += periodHTML(scr);
   h += '<table class="form"><colgroup>'+WID.map(function(w){ return '<col'+(w ? ' style="width:'+w+'"' : '')+'>'; }).join('')+(scr ? '<col style="width:64px">' : '')+'</colgroup>'+
        '<thead><tr><th>순번</th>'+cols.map(function(c){ return '<th>'+NAMES[c]+'</th>'; }).join('')+(scr ? '<th></th>' : '')+'</tr></thead><tbody>';
   var ov = scr ? rowOverlaps() : {};
@@ -714,6 +761,7 @@ function barHTML(){
   if (view !== 'dept') h += '<button class="btn" data-act="print">인쇄</button>';
   if (admin) h += '<button class="btn '+(mo.confirmed ? 'done' : 'primary')+'" data-act="confirm">'+(mo.confirmed ? '✓ '+t.m+'월 확정됨' : t.m+'월 확정')+'</button>';
   else if (mo.confirmed) h += '<span style="font-size:13px;color:#5D636B">'+t.m+'월 확정됨 · 새로 적은 일정은 관리자 승인 후 반영돼요</span>';
+  else if (!periodOpen()) h += '<span style="font-size:13px;color:#5D636B">'+t.m+'월 신청 기간이 아니에요 · 새로 적은 일정은 관리자 승인 후 반영돼요</span>';
   return h;
 }
 function render(){
@@ -903,6 +951,7 @@ function rowFor(rid, create){
 mainEl.addEventListener('change', function(e){
   var el = e.target; if (el.tagName !== 'INPUT') return;
   if (el.dataset.dk) return changeDept(el);
+  if (el.dataset.pk) return changePeriod(el);
   var parts = el.dataset.key.split(':'), f = el.dataset.f, v = el.type === 'checkbox' ? el.checked : el.value.trim();
   if (parts[0] === 'b') {
     if (!v) return;
@@ -1033,7 +1082,7 @@ document.addEventListener('click', function(e){
       return ask({text: m+'월 확정을 풀까요? 풀면 각 부서가 바로 고칠 수 있어요.', okLabel:'확정 풀기', onOk:function(){ if (admin) { mo.confirmed = false; markSynced(); sendMonth('/month/confirm', {ym:cur, confirmed:false}); } }});
     case 'clearMonth':
       return ask({text: m+'월 신청서와 현황표를 모두 지울까요? 다른 달은 그대로 두고, 지운 내용은 되돌릴 수 없어요.', okLabel: m+'월 지우기', danger:true,
-        onOk:function(){ if (admin) { DB.months[cur] = {confirmed:false, ops:[], rows:[], imported:null}; markSynced(); sendMonth('/month/clear', {ym:cur}); } }});
+        onOk:function(){ if (admin) { DB.months[cur] = {confirmed:false, ops:[], rows:[], imported:null, period:M().period}; markSynced(); sendMonth('/month/clear', {ym:cur}); } }});
   }
 });
 

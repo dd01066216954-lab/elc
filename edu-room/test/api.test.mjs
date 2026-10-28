@@ -142,6 +142,22 @@ test('부서 이름을 바꾸면 모든 달의 일정 부서명도 바뀐다', a
   assert.equal(nov.rows.length, 0);
 });
 
+test('신청 기간: 정하고, 풀고, 이상한 날짜는 막는다', async () => {
+  let { data } = await call('/month?ym=2026-11');
+  assert.equal(data.period, null);
+  assert.equal((await call('/month/period', { method: 'POST', body: { ym: '2026-11', from: '2026-10-20', to: '2026-10-27' } })).status, 200);
+  ({ data } = await call('/month?ym=2026-11'));
+  assert.deepEqual(data.period, { from: '2026-10-20', to: '2026-10-27' });
+  // 전부 지워도 신청 기간은 남는다
+  ({ data } = await call('/month/clear', { method: 'POST', body: { ym: '2026-11' } }));
+  assert.deepEqual(data.period, { from: '2026-10-20', to: '2026-10-27' });
+  assert.equal((await call('/month/period', { method: 'POST', body: { ym: '2026-11', from: '2026-10-28', to: '2026-10-27' } })).status, 400);
+  assert.equal((await call('/month/period', { method: 'POST', body: { ym: '2026-11', from: '10/20', to: '' } })).status, 400);
+  await call('/month/period', { method: 'POST', body: { ym: '2026-11', from: '', to: '' } });
+  ({ data } = await call('/month?ym=2026-11'));
+  assert.equal(data.period, null);
+});
+
 test('이상한 값은 막는다', async () => {
   assert.equal((await call('/month?ym=2026-13')).status, 400);
   assert.equal((await call('/rows', { method: 'POST', body: { ym: '2026-10', row: { id: 'a b' } } })).status, 400);
