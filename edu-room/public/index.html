@@ -164,6 +164,26 @@ table.form{width:100%;min-width:820px;border-collapse:collapse;table-layout:fixe
 .nbchips{display:flex;flex-wrap:wrap;gap:3px;justify-content:center}
 .nbchips button{height:24px;padding:0 6px;border-radius:12px;font-size:11px;font-weight:700;color:var(--ink);cursor:pointer}
 
+/* 이용시간 고르기 */
+.tpick{display:flex;flex-direction:column;gap:8px}
+.tp-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.tp-line>b{width:40px;font-size:14px}
+.tp-ap{font-size:11.5px;color:var(--muted);margin:0 2px 0 6px}
+.tp-gap{width:14px}
+.tp-b{height:36px;min-width:38px;padding:0 5px;border-radius:8px;border:1px solid #C5CAD2;background:#fff;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+.tp-b:hover{background:#EEF3FB}
+.tp-b.tp-m{min-width:40px;background:#F4F6F9}
+.tp-b.on{background:#2F6FD0;border-color:#2F6FD0;color:#fff;font-weight:700}
+.tp-quick .tp-b{border-radius:18px;background:#F4F6F9}
+.tp-busy{position:relative;margin:2px 0 0 44px;border-top:1px solid #C5CAD2;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/11.5 - 1px),#E3E6EA calc(100%/11.5 - 1px) calc(100%/11.5))}
+.tp-tick{position:absolute;top:1px;font-size:10.5px;color:var(--muted);transform:translateX(-50%)}
+.tp-tick:first-child{transform:none}
+.tp-seg{position:absolute;height:20px;border-radius:3px;font-size:11px;font-weight:700;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:default}
+.tp-mine{position:absolute;top:16px;bottom:0;background:rgba(47,111,208,.14);border:2px solid #2F6FD0;border-radius:3px;pointer-events:none;z-index:1}
+.tp-free{position:absolute;top:20px;left:0;font-size:12px;color:#1E6B3A}
+.tp-busy-none{margin-left:44px;font-size:12.5px;color:var(--muted)}
+.tp-side{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-left:44px}
+
 /* 겹치면 양보 */
 .yield{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);padding:0 2px 6px;cursor:pointer}
 .form .etc .yield input{width:16px;height:16px;margin:0;padding:0}
@@ -390,7 +410,11 @@ function parseTime(str){
   if (!str) return null;
   var s = String(str).replace(/\s+/g,' ');
   var pm = /오후/.test(s);
+  /* 1시반 → 1:30, 1330 → 13:30, '부터/까지', 띄어쓰기만 한 '1330 1500' 도 알아듣기 */
+  s = s.replace(/(\d{1,2})\s*시\s*반/g, '$1:30').replace(/\s*(부터|에서)\s*/g, '~').replace(/까지/g, '');
+  s = s.replace(/(^|[^\d:.])(\d{1,2})(\d{2})(?![\d:.])/g, '$1$2:$3');
   s = s.replace(/(\d{1,2})\s*시\s*(\d{1,2})\s*분?/g, '$1:$2').replace(/(\d{1,2})\s*시/g, '$1:00');
+  if (!/[~∼\-–]/.test(s)) s = s.replace(/(\d)\s+(?=\d)/, '$1~');
   var m = s.match(/(\d{1,2})(?:\s*[:.]\s*(\d{2}))?\s*[~∼\-–]\s*(\d{1,2})(?:\s*[:.]\s*(\d{2}))?/);
   if (!m) return null;
   var h1 = +m[1], m1 = +(m[2]||0), h2 = +m[3], m2 = +(m[4]||0);
@@ -644,7 +668,7 @@ function calHTML(mode, part){
 
 /* ---------------- 신청서 ---------------- */
 var FIELDS = ['dept','person','prog','sel','time','note','yieldOk'];
-var openPick = null, pickJustOpened = false;
+var openPick = null, pickJustOpened = false, openTime = null;
 /* 이용시간 빠른 선택: 오전·오후 기본 + 이 부서가 쓴 시간 (자주 쓴 순) */
 function timeChips(){
   var cnt = {}, base = ['09:00~12:00','13:00~18:00'];
@@ -674,6 +698,75 @@ function pickerHTML(rid, sel, span){
        '<button class="btn primary" data-act="pkClose">다 골랐어요</button></div></div></td></tr>';
   return h;
 }
+/* ---------------- 이용시간 고르기: 시작·끝 시와 분을 누르면 바로 들어감 ---------------- */
+var TP_H = [8,9,10,11,12,13,14,15,16,17,18,19], TP_M = [0,10,20,30,40,50], TP_A = 480, TP_B = 1170; // 막대 8:00~19:30
+function hLabel(h){ return (h > 12 ? h - 12 : h) + '시'; }
+function timePickHTML(rid, r, span){
+  var t = r ? parseTime(r.time) : null, sh = t ? Math.floor(t.s/60) : null, sm = t ? t.s%60 : null, eh = t ? Math.floor(t.e/60) : null, em = t ? t.e%60 : null;
+  var line = function(lab, k, hv, mv){
+    var h = '<div class="tp-line"><b>'+lab+'</b><span class="tp-ap">오전</span>';
+    TP_H.forEach(function(x){
+      if (x === 12) h += '<span class="tp-ap">오후</span>';
+      h += '<button class="tp-b'+(hv === x ? ' on' : '')+'" data-act="tp" data-row="'+rid+'" data-k="'+k+'h" data-v="'+x+'" aria-pressed="'+(hv === x)+'">'+hLabel(x)+'</button>';
+    });
+    h += '<span class="tp-gap"></span>';
+    TP_M.forEach(function(x){ h += '<button class="tp-b tp-m'+(mv === x && hv != null ? ' on' : '')+'" data-act="tp" data-row="'+rid+'" data-k="'+k+'m" data-v="'+x+'">:'+pad(x)+'</button>'; });
+    return h + '</div>';
+  };
+  var h = '<tr class="pickrow"><td colspan="'+span+'"><div class="tpick">';
+  h += '<div class="tp-line tp-quick"><b>자주</b>'+timeChips().map(function(c){ return '<button type="button" class="tp-b" data-act="tchip" data-row="'+rid+'" data-v="'+c+'">'+c+'</button>'; }).join('')+'</div>';
+  h += line('시작', 's', sh, sm) + line('끝', 'e', eh, em);
+  h += busyHTML(r, t);
+  h += '<div class="tp-side"><span class="pk-sum">'+(t ? t.label : '시작 시간을 눌러 주세요')+'</span>'+
+       '<span class="pk-help">글자로 적어도 돼요 (예: 1330 1500, 1시반~3시)</span>'+
+       '<button class="btn primary" data-act="tpClose" data-row="'+rid+'">다 골랐어요</button></div>';
+  return h + '</div></td></tr>';
+}
+/* 고른 날짜에 다른 일정이 쓰는 시간 (하루라도 겹치면 표시) */
+function busyHTML(r, t){
+  var days = r ? selDays(r.sel) : [];
+  if (!days.length) return '<div class="tp-busy-none">이용날짜를 먼저 고르면 그날 다른 일정이 쓰는 시간이 여기에 보여요.</div>';
+  var seen = {}, list = [];
+  days.forEach(function(d){
+    itemsFor(d, 'screen').forEach(function(x){
+      if (x.rowId === r.id || x.s == null || x.pend === 'new' || x.pend === 'del' || x.pend === 'remove') return;
+      var k = x.dept+'|'+x.s+'|'+x.e;
+      if (!seen[k]) list.push(seen[k] = {dept:x.dept, prog:x.prog, s:x.s, e:x.e, days:[]});
+      seen[k].days.push(d);
+    });
+  });
+  var lanes = [];
+  list.sort(function(a,b){ return a.s - b.s; }).forEach(function(x){
+    var i = 0; while (lanes[i] != null && lanes[i] > x.s) i++;
+    lanes[i] = x.e; x.lane = i;
+  });
+  var pos = function(m){ return Math.max(0, Math.min(100, (m - TP_A) / (TP_B - TP_A) * 100)); };
+  var nl = Math.max(1, lanes.length), h = '<div class="tp-busy" style="height:'+(nl*22+18)+'px">';
+  for (var x = 8; x <= 19; x++) h += '<span class="tp-tick" style="left:'+pos(x*60)+'%">'+hLabel(x)+'</span>';
+  if (t) h += '<span class="tp-mine" style="left:'+pos(t.s)+'%;width:'+(pos(t.e)-pos(t.s))+'%"></span>';
+  list.forEach(function(x){
+    var tip = x.dept+(x.prog ? ' <'+x.prog+'>' : '')+' '+hm(x.s)+'~'+hm(x.e)+' · '+x.days.join(', ')+'일';
+    h += '<span class="tp-seg '+colorOf(x.dept)+'" title="'+esc(tip)+'" style="left:'+pos(x.s)+'%;width:'+(pos(x.e)-pos(x.s))+'%;top:'+(18+x.lane*22)+'px">'+esc(x.dept)+'</span>';
+  });
+  if (!list.length) h += '<span class="tp-free">고른 날에는 다른 일정이 없어요</span>';
+  return h + '</div>';
+}
+function timePick(b){
+  var rid = b.dataset.row, row = rowFor(rid, true); if (!row) return;
+  var t = parseTime(row.time), k = b.dataset.k, v = +b.dataset.v;
+  var st = t ? {sh:Math.floor(t.s/60), sm:t.s%60, eh:Math.floor(t.e/60), em:t.e%60} : {sh:null, sm:0, eh:null, em:0};
+  st[k] = v;
+  if (st.sh == null) st.sh = Math.max(8, (st.eh != null ? st.eh : 10) - 1);
+  var a = st.sh*60 + st.sm;
+  if (k.charAt(0) === 's' && (st.eh == null || st.eh*60 + st.em <= a)) { st.eh = st.sh + 1; st.em = st.sm; }
+  if (st.eh*60 + st.em <= a) { st.sh = st.eh - 1; st.sm = st.em; }
+  var val = pad(st.sh)+':'+pad(st.sm)+'~'+pad(st.eh)+':'+pad(st.em);
+  if (rid.indexOf('b:') === 0) { row.time = val; remap = {from:rid+':', to:'r:'+row.id+':'}; openTime = 'r:'+row.id; }
+  else updateRow(row, function(x){ x.time = val; });
+  save(); render();
+  var f = document.querySelector('[data-act="tp"][data-row="'+openTime+'"][data-k="'+k+'"][data-v="'+v+'"]'); if (f) f.focus();
+}
+
 function rowOverlaps(){
   var map = {}, n = dim();
   for (var d = 1; d <= n; d++) {
@@ -729,7 +822,6 @@ function formHTML(mode){
       var ph = !r ? ({dept:'예: 자립지원', prog:'새 프로그램', time:'예: 13:00~14:30'}[f] || '') : '';
       h += '<td><input data-key="'+rid+':'+f+'" data-f="'+f+'" value="'+esc(v)+'"'+(ph ? ' placeholder="'+ph+'"' : '')+' aria-label="'+NAMES[f]+'">';
       if (r && f === 'time' && v && !parseTime(v)) h += '<div class="hint bad">시간을 알아볼 수 없어요 (예: 13:00~14:30)</div>';
-      if (f === 'time') h += '<div class="tchips">'+timeChips().map(function(c){ return '<button type="button" data-act="tchip" data-row="'+rid+'" data-v="'+c+'">'+c+'</button>'; }).join('')+'</div>';
       if (f === 'dept') h += '<div class="tchips dchips">'+DB.depts.map(function(d){ return '<button type="button" class="'+CLS[d.ci % CLS.length]+'" data-act="dchip" data-row="'+rid+'" data-v="'+esc(d.name)+'">'+esc(d.name)+'</button>'; }).join('')+'</div>';
       if (r && f === 'dept' && v && !deptOf(v)) h += '<div class="hint bad">부서 목록에 없는 이름이에요</div>';
       h += '</td>';
@@ -737,6 +829,7 @@ function formHTML(mode){
     if (scr) h += '<td class="delcell">'+(r && pk !== 'del' ? '<button class="rowdel" data-act="delRow" data-row="'+rid+'">지우기</button>' : '')+'</td>';
     h += '</tr>';
     if (scr && openPick === rid) h += pickerHTML(rid, r ? r.sel : emptySel(), cols.length + 2);
+    if (scr && openTime === rid) h += timePickHTML(rid, r, cols.length + 2);
   }
   h += '</tbody></table>';
   if (scr) {
@@ -795,6 +888,9 @@ function barHTML(){
 function render(){
   dCache = {}; ORIG = {};
   var ae = document.activeElement, fk = ae && ae.dataset ? (ae.dataset.key || ae.dataset.dk) : null;
+  /* 적는 중인 칸: 아직 저장 안 된 글자와 커서 위치를 다시 그린 뒤에도 그대로 */
+  var typing = ae && ae.tagName === 'INPUT' && ae.type === 'text' || ae && ae.tagName === 'INPUT' && !ae.type;
+  var keep = typing ? {v:ae.value, dirty: ae.value !== ae.defaultValue, a:ae.selectionStart, b:ae.selectionEnd} : null;
   if (fk && remap && fk.indexOf(remap.from) === 0) fk = remap.to + fk.slice(remap.from.length);
   remap = null;
   if (!admin && view === 'dept') view = 'cal';
@@ -809,6 +905,10 @@ function render(){
     var q = window.CSS && CSS.escape ? CSS.escape(fk) : fk;
     var el = document.querySelector('[data-key="'+q+'"],[data-dk="'+q+'"]');
     if (el) el.focus();
+    if (el && keep && el.tagName === 'INPUT') {
+      if (keep.dirty) el.value = keep.v;
+      try { el.setSelectionRange(keep.a, keep.b); } catch(e) {}
+    }
   }
 }
 function commit(){ save(); setTimeout(render, 0); }
@@ -909,6 +1009,9 @@ mainEl.addEventListener('focusin', function(e){
     return;
   }
   if (openPick && rowKey !== openPick && !el.closest('.tchips')) { openPick = null; setTimeout(render, 0); }
+  var isTime = key && /^[rb]:[^:]+:time$/.test(key);
+  if (isTime && openTime !== rowKey) { openTime = rowKey; openPick = null; setTimeout(render, 0); }
+  else if (!isTime && openTime) { openTime = null; setTimeout(render, 0); }
 });
 mainEl.addEventListener('focusout', function(e){
   var el = e.target;
@@ -986,6 +1089,7 @@ mainEl.addEventListener('change', function(e){
     var r = rowFor('b:'+parts[1], true); r[f] = v;
     remap = {from:'b:'+parts[1]+':', to:'r:'+r.id+':'};
     if (openPick === 'b:'+parts[1]) openPick = 'r:'+r.id;
+    if (openTime === 'b:'+parts[1]) openTime = 'r:'+r.id;
     return commit();
   }
   var row = rowFor('r:'+parts[1]); if (!row) return;
@@ -1036,16 +1140,23 @@ document.addEventListener('click', function(e){
   if (askFn && !e.target.closest('#ask')) closeAsk();
   var b = e.target.closest('button[data-act]');
   if (openPick && !e.target.closest('.pickrow') && !(b && b.dataset.act === 'pick')) { openPick = null; if (!b) return render(); }
+  if (openTime && !e.target.closest('.pickrow') && !(e.target.dataset && /:time$/.test(e.target.dataset.key || ''))) { openTime = null; if (!b) return render(); }
   if (!b) return;
   var act = b.dataset.act, mo = M(), m = ym().m;
   switch (act) {
     case 'pick': if (pickJustOpened) { pickJustOpened = false; return; } openPick = openPick === b.dataset.row ? null : b.dataset.row; return render();
     case 'pkWd': case 'pkDay': return pickAction(b);
     case 'pkClose': openPick = null; return render();
+    case 'tp': return timePick(b);
+    case 'tpClose':
+      openTime = null; render();
+      var nt = document.querySelector('[data-key="'+b.dataset.row+':note"]'); if (nt) nt.focus();
+      return;
     case 'tchip':
       var tr = rowFor(b.dataset.row, true); if (!tr) return;
       if (b.dataset.row.indexOf('b:') === 0) { tr.time = b.dataset.v; remap = {from:b.dataset.row+':', to:'r:'+tr.id+':'}; }
       else updateRow(tr, function(x){ x.time = b.dataset.v; });
+      openTime = null;
       save(); render();
       var nx = document.querySelector('[data-key="r:'+tr.id+':note"]'); if (nx) nx.focus();
       return;
