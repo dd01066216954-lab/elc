@@ -1,0 +1,16 @@
+{
+  "name": "4층 교육장 현황표",
+  "short_name": "4층 교육장",
+  "description": "부서별 교육장 이용 신청서와 월간 현황표",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ECEEF1",
+  "theme_color": "#24364F",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

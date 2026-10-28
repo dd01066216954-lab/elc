@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>4층 교육장 현황표</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#24364F">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="4층 교육장">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
 <style>
 /* 레이아웃: 위쪽 버튼 줄 + 가운데 종이 한 장(신청서 / 현황표 / 부서). 화면 = 인쇄물 */
@@ -1530,6 +1535,8 @@ function loadFailed(e){
   if (M()) return ask({text: '불러오지 못했어요. ' + (e && e.message ? e.message : ''), okLabel:'확인', onOk:function(){}});
   document.getElementById('main').innerHTML = '<section class="sheet chooser"><p>불러오지 못했어요. ' + esc(e && e.message ? e.message : '') + ' 잠시 뒤 새로고침해 주세요.</p></section>';
 }
+/* 설치(PWA): 크롬·엣지 주소창의 '설치', 휴대폰은 '홈 화면에 추가' */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
 loadPrefs();
 loadMonth(cur).then(function(){ render(); window.addEventListener('hashchange', checkHash); checkHash(); }, loadFailed);
 </script>

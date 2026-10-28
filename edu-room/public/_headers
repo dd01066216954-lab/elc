@@ -1,3 +1,6 @@
 # 화면 파일은 늘 새로 확인 (배포하면 바로 반영되게)
 /*
   Cache-Control: no-cache
+
+/manifest.webmanifest
+  Content-Type: application/manifest+json
