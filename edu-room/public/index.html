@@ -821,7 +821,7 @@ function formHTML(mode){
   var WID = scr ? (admin ? ['52px','14%','22%','24%','17%',''] : ['52px','26%','28%','19%',''])
                 : (admin ? ['52px','15%','10%','17%','21%','15%',''] : ['52px','12%','20%','24%','17%','']);
   var my = !admin && mgrOf(DB.me);
-  var h = '<h1 class="title">4층 교육장 이용 신청서 (<em>'+t.m+'월</em>)'+(!admin ? ' · '+esc(DB.me)+(my ? ' <span class="mgr">(담당 '+esc(my)+')</span>' : '') : '')+'</h1>';
+  var h = '<h1 class="title">4층 교육장 이용 신청서 (<em>'+t.m+'월</em>)'+(!admin ? ' · '+esc(DB.me)+(my ? ' <span class="mgr">(담당 : '+esc(my)+')</span>' : '') : '')+'</h1>';
   h += '<div class="rules"><div class="rh">교육장 이용 규칙</div><div class="rb"'+(scr && admin ? ' contenteditable="true" spellcheck="false" data-key="rules" id="rulesBox"' : '')+'>'+esc(DB.rules)+'</div></div>';
   h += periodHTML(scr);
   h += '<table class="form"><colgroup>'+WID.map(function(w){ return '<col'+(w ? ' style="width:'+w+'"' : '')+'>'; }).join('')+(scr ? '<col style="width:64px">' : '')+'</colgroup>'+
