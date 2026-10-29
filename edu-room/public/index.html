@@ -149,15 +149,15 @@ main{padding:24px 16px 48px}
 .flash{animation:flash 1.2s ease 2}
 @keyframes flash{50%{box-shadow:0 0 0 4px #FFD54F}}
 /* 휴대폰 */
-@media (max-width: 720px){
-  .bar{padding:8px 10px;gap:6px 8px;min-height:0}
+@media (max-width: 720px), (max-height: 520px) and (pointer: coarse){
+  .bar{padding:6px 8px;gap:4px 6px;min-height:0}
   .room{font-size:15px}
   .bar .btn[data-act="print"]{display:none}
   .nav button{width:36px;height:40px}
   .nav .ym{min-width:0;font-size:16px;padding:0 4px}
-  .seg button{height:38px;padding:0 14px;font-size:14px}
+  .seg button{height:38px;padding:0 10px;font-size:14px}
   .bar .grow{display:none}
-  #main{padding:10px 0 24px}
+  #main{padding:6px 0 20px}
   .sheet{padding:16px 12px 20px;box-shadow:none}
   .sheet .title{font-size:19px;margin-bottom:12px}
   .sheet[data-view="form"]::before{content:'← 옆으로 밀어서 보세요 · 신청서는 컴퓨터에서 적기 편해요';display:block;font-size:12.5px;color:var(--muted);margin-bottom:8px}
@@ -166,7 +166,12 @@ main{padding:24px 16px 48px}
   .mpick{position:fixed;top:56px;left:50%;transform:translateX(-50%)}
 }
 .phone.sheet{padding-left:6px;padding-right:6px}
-.wknav{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px}
+.fitw.sheet{padding:8px 6px 12px;overflow:hidden}
+.fitw .title{font-size:18px;margin-bottom:6px}
+.fitw .half.am,.fitw .half.pm{min-height:48px}.fitw .half.full{min-height:96px}
+#main .fitw .half:not(.out):not(.hol){padding-bottom:4px}
+.fitw .half:hover::after{content:none!important}
+.wknav{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px}
 .wknav b{font-size:16px}
 .wknav b span{font-weight:500;color:var(--muted);font-size:14px}
 .wknav button{width:48px;height:40px;border:1px solid #C5CAD2;border-radius:8px;background:#fff;font-size:15px}
@@ -179,14 +184,17 @@ main{padding:24px 16px 48px}
 .phone .lab{font-size:11.5px;writing-mode:vertical-rl;letter-spacing:2px}
 .phone .lab.r1{writing-mode:horizontal-tb;letter-spacing:0;font-size:0}
 .phone .date{font-size:15px;height:28px}
-.phone .half.am{min-height:78px}.phone .half.pm{min-height:110px}.phone .half.full{min-height:188px}
+.phone .half.am,.phone .half.pm{min-height:52px}.phone .half.full{min-height:104px}
+.phone > .title{display:none}   /* 월은 위쪽 줄과 '◀ N월 N주 ▶'에 있음 */
+.phone.sheet{padding-top:8px;padding-bottom:10px}
 .phone .half .blk{font-size:10px;line-height:1.25;padding:4px 1px;letter-spacing:-.3px}
 .phone .blk.ed::first-line{font-size:10px}
 .phone .half.hol{font-size:15px}
 .phone .ovnote{font-size:9.5px}
 .phone .half:hover::after{content:none!important}
-.phone #main .half,.phone .half:not(.out):not(.hol){padding-bottom:10px}
+#main .phone .half:not(.out):not(.hol){padding-bottom:4px}
 .phone .notice{font-size:13px}
+@media (max-width: 720px){ .bar .room{display:none} .who{padding-left:8px} }
 @media (prefers-reduced-motion:reduce){.flash{animation:none;box-shadow:0 0 0 4px #FFD54F}}
 
 /* 신청서 */
@@ -1180,9 +1188,21 @@ function goMonth(k){
 }
 
 /* ---------------- 휴대폰: 현황표를 날짜별 목록으로 (보기 위주) ---------------- */
-var phoneMQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : null;
-function isPhone(){ return !!(phoneMQ && phoneMQ.matches); }
-if (phoneMQ) (phoneMQ.addEventListener ? phoneMQ.addEventListener('change', function(){ render(); }) : phoneMQ.addListener(function(){ render(); }));
+var phoneMQ = window.matchMedia ? window.matchMedia('(max-width: 720px), (max-height: 520px) and (pointer: coarse)') : null;
+/* 세로 휴대폰 = 한 주씩 표, 가로로 돌린 휴대폰 = 한 달 표를 화면 폭에 맞게 줄여서 */
+var landMQ = window.matchMedia ? window.matchMedia('(max-height: 520px) and (pointer: coarse) and (orientation: landscape)') : null;
+function isLand(){ return !!(landMQ && landMQ.matches); }
+function isPhone(){ return !!(phoneMQ && phoneMQ.matches) && !isLand(); }
+[phoneMQ, landMQ].forEach(function(q){ if (q) (q.addEventListener ? q.addEventListener('change', function(){ render(); }) : q.addListener(function(){ render(); })); });
+function fitWidth(){
+  var c = document.querySelector('.fitw .cal'); if (!c) return;
+  c.style.zoom = '';
+  var sh = document.getElementById('sheet'), cs = getComputedStyle(sh);
+  var avail = sh.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2, w = c.offsetWidth;
+  if (w > avail) c.style.zoom = (avail / w).toFixed(3);
+}
+var fitT = null;
+window.addEventListener('resize', function(){ clearTimeout(fitT); fitT = setTimeout(fitWidth, 120); });
 var phoneWeek = {};   // 달마다 보고 있는 주 (처음엔 이번 주)
 function phoneWeekHTML(){
   var weeks = weeksOf(), n = dim(), td = todayStr();
@@ -1213,8 +1233,10 @@ function render(){
   else if (view === 'form') html = formHTML('screen');
   else if (view === 'dept') html = deptHTML();
   else if (isPhone()) { cls += ' phone'; html = phoneWeekHTML(); }
+  else if (isLand()) { cls += ' fitw'; html = calHTML('screen'); }
   else html = calHTML('screen');
   main.innerHTML = '<section class="'+cls+'" id="sheet" data-view="'+(!admin && !DB.me ? 'choose' : view)+'">'+html+'</section>';
+  fitWidth();
   if (fk) {
     var q = window.CSS && CSS.escape ? CSS.escape(fk) : fk;
     var el = document.querySelector('[data-key="'+q+'"],[data-dk="'+q+'"]');
