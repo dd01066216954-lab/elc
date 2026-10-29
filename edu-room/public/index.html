@@ -175,7 +175,6 @@ main{padding:24px 16px 48px}
 .wknav b{font-size:16px}
 .wknav b span{font-weight:500;color:var(--muted);font-size:14px}
 .wknav button{width:48px;height:40px;border:1px solid #C5CAD2;border-radius:8px;background:#fff;font-size:15px}
-.wknav button:disabled{opacity:.35}
 .phone .cal{min-width:0}
 .phone .cal-head,.phone .wk{grid-template-columns:0 22px repeat(5,minmax(0,1fr))}
 .phone .cal-head>div:first-child,.phone .wlabel{overflow:hidden;font-size:0;border:0;padding:0}   /* 칸 자리는 남겨 둠 (없애면 요일이 한 칸씩 밀림) */
@@ -1211,10 +1210,11 @@ function phoneWeekHTML(){
     if (td.slice(0, 7) === cur) weeks.forEach(function(w, i){ if (w.indexOf(+td.slice(8)) >= 0) wi = i; });
     phoneWeek[cur] = wi;
   }
-  var i = Math.max(0, Math.min(weeks.length - 1, phoneWeek[cur])), w = weeks[i].filter(function(d){ return d >= 1 && d <= n; });
-  var h = '<div class="wknav"><button data-act="pw" data-v="-1" aria-label="이전 주"'+(i === 0 ? ' disabled' : '')+'>◀</button>'+
+  var i = phoneWeek[cur] = Math.max(0, Math.min(weeks.length - 1, phoneWeek[cur])), w = weeks[i].filter(function(d){ return d >= 1 && d <= n; });
+  /* 첫 주에서 ◀ = 지난달 마지막 주, 마지막 주에서 ▶ = 다음 달 1주 */
+  var h = '<div class="wknav"><button data-act="pw" data-v="-1" aria-label="'+(i === 0 ? '지난달 마지막 주' : '이전 주')+'">◀</button>'+
           '<b>'+ym().m+'월 '+(i + 1)+'주 <span>('+w[0]+'일~'+w[w.length - 1]+'일)</span></b>'+
-          '<button data-act="pw" data-v="1" aria-label="다음 주"'+(i === weeks.length - 1 ? ' disabled' : '')+'>▶</button></div>';
+          '<button data-act="pw" data-v="1" aria-label="'+(i === weeks.length - 1 ? '다음 달 1주' : '다음 주')+'">▶</button></div>';
   return calHTML('screen', [i, i + 1]).replace('<div class="cal">', h + '<div class="cal">');
 }
 
@@ -1538,7 +1538,11 @@ document.addEventListener('click', function(e){
         onOk:function(){ var el2 = document.querySelector('.blk[data-key="'+b.dataset.key+'"]'); if (el2) applyBlock(el2, ''); }});
     case 'prev': case 'next': return goMonth(shiftMonth(cur, act === 'prev' ? -1 : 1));
     case 'mp': mp = mp ? null : {y: ym().y}; return render();
-    case 'pw': phoneWeek[cur] = (phoneWeek[cur] || 0) + (+b.dataset.v); return render();
+    case 'pw':
+      var pwN = weeksOf().length, pwI = (phoneWeek[cur] || 0) + (+b.dataset.v);
+      if (pwI < 0) { var pk = shiftMonth(cur, -1); phoneWeek[pk] = 99; return goMonth(pk); }      // 지난달 마지막 주로
+      if (pwI >= pwN) { var nk = shiftMonth(cur, 1); phoneWeek[nk] = 0; return goMonth(nk); }     // 다음 달 1주로
+      phoneWeek[cur] = pwI; return render();
     case 'mpY': mp.y += +b.dataset.v; return render();
     case 'mpGo': return goMonth(b.dataset.v);
     case 'view': view = b.dataset.v; return commit();
