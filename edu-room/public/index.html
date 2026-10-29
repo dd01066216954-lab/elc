@@ -70,6 +70,7 @@ button:focus-visible,input:focus-visible,[contenteditable]:focus{outline:2px sol
 .ask.pop #askMsg{flex-basis:100%}
 .ask.pop{justify-content:flex-end}
 .ask.pop .btn{height:34px}
+.ask.pop input{width:130px;height:36px}
 .ask.pop::after{content:'';position:absolute;width:12px;height:12px;background:#FFF8E1;border:1px solid #E0CC8A;transform:rotate(45deg)}
 .ask.pop.side::after{right:-7px;top:calc(50% - 6px);border-left:0;border-bottom:0}
 .ask.pop.below::after{top:-7px;left:var(--ax,20px);border-right:0;border-bottom:0}
@@ -83,11 +84,18 @@ main{padding:24px 16px 48px}
 .notice button{border:0;background:var(--head);border-radius:6px;height:28px;padding:0 10px;font-size:13px;color:#444}
 
 /* 부서 고르기 */
-.chooser{max-width:560px;text-align:center;padding:40px 28px}
+.chooser{max-width:min(560px,100%);text-align:center;padding:40px 28px}
 .chooser p{color:var(--muted);margin:0 0 22px;font-size:15px}
 .depts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .depts button{height:64px;border-radius:10px;font-size:17px;font-weight:700;color:var(--ink)}
 .chooser .link{margin-top:26px;font-size:14px}
+@media (max-width: 720px){
+  .chooser{padding:28px 14px}
+  .depts{grid-template-columns:1fr 1fr;gap:10px}
+  .depts button{height:58px;font-size:16px;padding:0 6px}
+  .depts button:last-child:nth-child(odd){grid-column:1/-1}
+  .chooser .admin-in{display:block;width:100%;height:48px;margin-top:22px;border:1px solid #C5CAD2;border-radius:10px;background:#fff;color:var(--ink);font-size:15px;font-weight:700;text-decoration:none}
+}
 
 /* 현황표 */
 .cal{min-width:900px;border:1.5px solid var(--line-strong)}
@@ -1138,7 +1146,7 @@ function deptHTML(){
 function chooserHTML(){
   return '<h1 class="title">4층 교육장</h1><p>어느 부서인가요?</p><div class="depts">'+
     DB.depts.map(function(d){ return '<button class="'+CLS[d.ci % CLS.length]+'" data-act="pickDept" data-name="'+esc(d.name)+'">'+esc(d.name)+'</button>'; }).join('')+
-    '</</div><button class="link" data-act="adminEnter">관리자로 들어가기</button>';
+    '</div><button class="link admin-in" data-act="adminEnter">관리자로 들어가기</button>';
 }
 
 /* ---------------- 화면 갱신 ---------------- */
@@ -1247,7 +1255,7 @@ function ask(o){
   if (o.at) {   // 누른 버튼 왼쪽에, 자리가 없으면 아래에
     var sx = window.scrollX, sy = window.scrollY;
     var w = bar.offsetWidth, hh = bar.offsetHeight;
-    if (r.left - w - 12 >= 8) {
+    if (!o.below && r.left - w - 12 >= 8) {
       bar.classList.add('side');
       bar.style.left = (r.left + sx - w - 12) + 'px';
       bar.style.top = Math.max(sy + 8, r.top + sy + r.height/2 - hh/2) + 'px';
@@ -1542,19 +1550,19 @@ document.addEventListener('click', function(e){
       var d = deptOf(b.dataset.name); if (!d) return;
       var deptLogin = function(v){ return api('POST', '/login', {dept:d.name, pin:v}).then(function(r){ deptToken = r.token; return null; }, function(e){ return e.message; }); };
       if (!d.hasPin) return deptLogin('').then(function(err){ if (err) return ask({text:err, okLabel:'확인', onOk:function(){}}); DB.me = d.name; commit(); });
-      return ask({text: d.name+' 비밀번호를 적어 주세요.', pin:true, okLabel:'들어가기', check:deptLogin,
+      return ask({text: d.name+' 비밀번호를 적어 주세요.', pin:true, okLabel:'들어가기', check:deptLogin, at:b, below:true,
         onOk:function(){ DB.me = d.name; }});
-    case 'adminEnter': return adminLogin();
+    case 'adminEnter': return adminLogin(b);
     case 'clearPin':
       var cd = DB.depts[+b.dataset.i]; if (!admin || !cd) return;
       return ask({text: cd.name+' 비밀번호를 없앨까요? 누구나 들어갈 수 있게 돼요.', okLabel:'없애기', danger:true, at:b,
         onOk:function(){ cd.hasPin = false; send(function(){ return api('PUT', '/depts', {action:'pin', name:cd.name, pin:''}); }); }});
   }
 });
-function adminLogin(){
+function adminLogin(at){
       if (admin) return;
       var first = !DB.adminSet;
-      ask({text: first ? '처음이라 관리자 비밀번호를 정해 주세요 (4자리 이상).' : '관리자 비밀번호를 적어 주세요.', pin:true, okLabel:'들어가기',
+      ask({text: first ? '처음이라 관리자 비밀번호를 정해 주세요 (4자리 이상).' : '관리자 비밀번호를 적어 주세요.', pin:true, okLabel:'들어가기', at:at, below:true,
         check: adminCheck(first), onOk:function(){ DB.adminSet = true; admin = true; }});
 }
 function adminCheck(first){
