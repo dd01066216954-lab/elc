@@ -91,9 +91,8 @@ main{padding:24px 16px 48px}
 .chooser .link{margin-top:26px;font-size:14px}
 @media (max-width: 720px){
   .chooser{padding:28px 14px}
-  .depts{grid-template-columns:1fr 1fr;gap:10px}
-  .depts button{height:58px;font-size:16px;padding:0 6px}
-  .depts button:last-child:nth-child(odd){grid-column:1/-1}
+  .depts{grid-template-columns:1fr;gap:10px}   /* 휴대폰: 한 줄에 하나씩 */
+  .depts button{height:56px;font-size:17px;padding:0 6px}
   .chooser .admin-in{display:block;width:100%;height:48px;margin-top:22px;border:1px solid #C5CAD2;border-radius:10px;background:#fff;color:var(--ink);font-size:15px;font-weight:700;text-decoration:none}
 }
 
