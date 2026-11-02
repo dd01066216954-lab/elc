@@ -351,9 +351,11 @@ table.mng{width:100%;max-width:640px;margin:0 auto;border-collapse:collapse;bord
 }
 .pp .sheet{box-shadow:none;width:940px;padding:0;overflow:visible}
 .pp .half{cursor:default}
-.pp .half.am{min-height:70px}
-.pp .half.pm{min-height:110px}
-.pp .half.full{min-height:184px}
+/* 인쇄: 빈 칸 높이는 내용만큼만, 칸 안 여백도 줄여서 한 장에 최대한 크게 */
+.pp .half.am,.pp .half.pm{min-height:44px}
+.pp .half.full{min-height:88px}
+.pp .half .blk{padding:3px 4px;line-height:1.25}
+.pp .title{margin:0 0 8px}
 .pp td{padding:8px!important;height:38px}
 </style>
 </head>
@@ -1584,7 +1586,7 @@ document.addEventListener('click', function(e){
 });
 
 
-/* ---------------- 인쇄: A4 한 장에 맞추고, 너무 작아지면 두 장 ---------------- */
+/* ---------------- 인쇄: 일정이 많아도 A4 한 장에 맞게 줄인다 (두 장으로 나누지 않음) ---------------- */
 var A4W = 715, A4H = 950;
 function preparePrint(){
   var area = document.getElementById('printArea');
@@ -1593,11 +1595,7 @@ function preparePrint(){
   if (view === 'form') {
     area.innerHTML = page(formHTML('print'));
   } else {
-    area.innerHTML = page(calHTML('print'));
-    if (A4H / area.firstChild.offsetHeight < 0.62) {
-      var n = weeksOf().length, cut = Math.ceil(n/2);
-      area.innerHTML = page(calHTML('print',[0,cut])) + page(calHTML('print',[cut,n]));
-    }
+    area.innerHTML = page(calHTML('print'));   // 늘 한 장: 아래에서 A4 한 장에 맞게 줄인다
   }
   var pages = area.querySelectorAll('.ppage'), z = 1;
   pages.forEach(function(p){ z = Math.min(z, A4W / p.offsetWidth, A4H / p.offsetHeight); });
